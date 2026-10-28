@@ -1,0 +1,94 @@
+[
+  {
+    "name": "about-laboratory",
+    "source": "https://www.pexels.com/photo/scientist-in-laboratory-3735769/",
+    "file": "assets/images/about-laboratory.webp",
+    "size": [
+      1400,
+      933
+    ]
+  },
+  {
+    "name": "research-laboratory",
+    "source": "https://www.pexels.com/photo/female-scientist-in-white-lab-coat-working-in-a-laboratory-4031692/",
+    "file": "assets/images/research-laboratory.webp",
+    "size": [
+      1200,
+      800
+    ]
+  },
+  {
+    "name": "format-powders",
+    "source": "https://www.pexels.com/photo/a-white-container-and-a-pile-of-dry-food-with-a-clear-spoon-13779116/",
+    "file": "assets/images/format-powders.webp",
+    "size": [
+      800,
+      800
+    ]
+  },
+  {
+    "name": "format-capsules",
+    "source": "https://www.pexels.com/photo/pills-inside-a-bottle-13787566/",
+    "file": "assets/images/format-capsules.webp",
+    "size": [
+      800,
+      571
+    ]
+  },
+  {
+    "name": "format-gummies",
+    "source": "https://www.pexels.com/photo/assorted-delicious-candies-in-clear-plastic-bowl-7033939/",
+    "file": "assets/images/format-gummies.webp",
+    "size": [
+      800,
+      450
+    ]
+  },
+  {
+    "name": "format-drops",
+    "source": "https://www.pexels.com/photo/a-glass-dropper-on-the-brown-glass-bottle-6914588/",
+    "file": "assets/images/format-drops.webp",
+    "size": [
+      800,
+      1200
+    ]
+  },
+  {
+    "name": "format-syrups",
+    "source": "https://www.pexels.com/photo/small-bottles-and-pills-7526067/",
+    "file": "assets/images/format-syrups.webp",
+    "size": [
+      800,
+      533
+    ]
+  },
+  {
+    "name": "format-effervescent",
+    "id": 5722880,
+    "size": [
+      900,
+      1350
+    ],
+    "source": "https://www.pexels.com/photo/5722880/"
+  },
+  {
+    "name": "format-tablets",
+    "id": 7722651,
+    "size": [
+      900,
+      1350
+    ],
+    "source": "https://www.pexels.com/photo/7722651/"
+  },
+  {
+    "name": "format-sachets",
+    "source": "AI-created private label packaging concept; built-in image generation",
+    "file": "assets/images/format-sachets.webp"
+  },
+  {
+    "name": "format-granules",
+    "source": "https://www.pexels.com/photo/spoon-in-glass-of-sugar-15206766/",
+    "file": "assets/images/format-granules.webp",
+    "note": "Stock granulated ingredient texture; representative of format only."
+  }
+]

@@ -1,0 +1,9 @@
+import { useState } from 'react';
+import { ArrowUpRight, Minus, Plus } from 'lucide-react';
+import { Eyebrow } from '../components/SectionHeading';
+import { qualityTopics } from '../data/company';
+
+export default function Quality() {
+  const [active, setActive] = useState<number | null>(0);
+  return <section id="quality" className="section quality" aria-labelledby="quality-title"><div className="container quality__layout"><figure className="quality__visual"><img src="/assets/images/about-laboratory.webp" width="1400" height="933" loading="lazy" decoding="async" alt="Representative laboratory scene with a researcher handling samples" /><figcaption><span>IT STARTS WITH A QUESTION.</span><strong>It grows with good science.</strong><ArrowUpRight size={26} strokeWidth={1.3} /></figcaption><span className="photo-disclaimer">Representative laboratory image</span></figure><div className="quality__copy"><Eyebrow>04 / Research & quality</Eyebrow><h2 id="quality-title">Care in the process.<br />Confidence in the product.</h2><p className="quality__intro">Thoughtful development and a continuous commitment to improvement. Because what goes into a product matters as much as the label on it.</p><div className="accordion">{qualityTopics.map((topic, index) => <div className="accordion__item" key={topic.title}><h3><button aria-expanded={active === index} aria-controls={`quality-panel-${index}`} id={`quality-trigger-${index}`} onClick={() => setActive(active === index ? null : index)}><span className="accordion__number">0{index + 1}</span>{topic.title}{active === index ? <Minus size={18} /> : <Plus size={18} />}</button></h3><div id={`quality-panel-${index}`} role="region" aria-labelledby={`quality-trigger-${index}`} hidden={active !== index}><p>{topic.description}</p></div></div>)}</div></div></div></section>;
+}

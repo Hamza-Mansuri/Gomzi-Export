@@ -1,0 +1,10 @@
+import { ArrowUp, ArrowUpRight, MapPin } from 'lucide-react';
+import { company, navigation } from '../data/company';
+import { Eyebrow } from './SectionHeading';
+
+export default function Footer({ onInquiry }: { onInquiry: () => void }) {
+  return <>
+    <section id="closing-cta" className="closing-cta" aria-labelledby="contact-title"><div className="container closing-cta__inner"><div><Eyebrow light>Good things start with a conversation</Eyebrow><h2 id="contact-title">Let’s create<br /><span>what comes next.</span></h2></div><div className="closing-cta__action"><p>Your ambition deserves the right partner.<br />Tell us where you want to go.</p><button className="button button--light" onClick={onInquiry}>Start a conversation<ArrowUpRight size={19} /></button></div></div></section>
+    <footer className="footer"><div className="container"><div className="footer__main"><div className="footer__brand"><a className="brand" href="#home" aria-label="Gomzi home"><img src="/assets/images/logo.webp" width="168" height="63" alt="Gomzi Life Science LLP" loading="lazy" decoding="async" /></a><p>Thoughtful nutrition.<br />Your label. A world of possibility.</p><span><MapPin size={14} />{company.location}</span></div><div className="footer__column"><h3>Explore</h3>{navigation.map(item => <a key={item.href} href={item.href}>{item.label}</a>)}<a href="#gallery">Company gallery</a></div><div className="footer__column footer__contact"><h3>Let’s connect</h3><a href={`mailto:${company.email}`}>{company.email}<ArrowUpRight size={15} /></a><a href={`tel:${company.phoneHref}`}>{company.phone}</a><a href={company.website} target="_blank" rel="noopener noreferrer">Visit Gomzi Life Science<ArrowUpRight size={15} /></a><address>{company.address}</address></div></div><div className="footer__bottom"><span>© {new Date().getFullYear()} {company.name}. All rights reserved.</span><span>MADE WITH PURPOSE. MADE FOR POSSIBILITY.</span><a href="#home" aria-label="Back to top"><ArrowUp size={18} /></a></div></div></footer>
+  </>;
+}

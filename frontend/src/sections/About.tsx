@@ -1,0 +1,9 @@
+import { ArrowUpRight, Check } from 'lucide-react';
+import { Eyebrow } from '../components/SectionHeading';
+
+export default function About() {
+  return <section id="about" className="section about" aria-labelledby="about-title"><div className="container about__layout">
+    <div className="about__copy"><Eyebrow>01 / Know Gomzi</Eyebrow><h2 id="about-title">A thoughtful partner.<br />At every step.</h2><p className="lead">Great nutrition begins with a clear purpose.<br />Great brands begin with the right partner.</p><p>Based in Surat, India, Gomzi Life Science LLP brings together nutraceutical manufacturing, product development and private labelling to help turn your product idea into a brand of your own.</p><p>From everyday nutrition to sports supplements, we put your requirements at the centre. Formulation, ingredients, packaging and presentation come together around one goal: a product that feels unmistakably yours.</p><div className="about__checks"><span><Check size={16} />Your requirements, at the centre</span><span><Check size={16} />From concept to finished product</span></div><a className="text-link" href="#private-label">Explore our approach<ArrowUpRight size={17} /></a></div>
+    <figure className="about__visual"><div className="about__photo"><img src="/assets/images/research-laboratory.webp" width="1200" height="800" alt="Scientist working with laboratory equipment, representing a research-led approach to nutrition" loading="lazy" decoding="async" /></div><span className="about__vertical">PRECISION. PURPOSE. POSSIBILITY.</span><figcaption className="about__caption"><span className="about__caption-line" /><p>Good science.<br /><strong>Even better partnerships.</strong></p><ArrowUpRight size={26} strokeWidth={1.3} /></figcaption><span className="photo-disclaimer">Representative laboratory image</span></figure>
+  </div></section>;
+}
