@@ -2,14 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
 // Helper to encode image file to base64 Data URI
-function toBase64Uri(relPath) {
-  const fullPath = path.join(rootDir, relPath);
+function toBase64Uri(fullPath) {
   if (!fs.existsSync(fullPath)) {
     console.warn(`File not found: ${fullPath}`);
     return '';
@@ -20,20 +20,65 @@ function toBase64Uri(relPath) {
   return `data:${mime};base64,${data}`;
 }
 
-// Import SVG path from worldPath.ts
-const worldPathFile = fs.readFileSync(path.join(rootDir, 'frontend', 'src', 'data', 'worldPath.ts'), 'utf-8');
-const worldPathMatch = worldPathFile.match(/export const worldPath = '([^']+)';/);
-const worldPath = worldPathMatch ? worldPathMatch[1] : '';
+// Extract exact world map path from world-map.svg
+const worldSvgPath = path.join(rootDir, 'frontend', 'public', 'assets', 'images', 'world-map.svg');
+const worldSvgContent = fs.readFileSync(worldSvgPath, 'utf-8');
+const quoteChar = String.fromCharCode(34);
+const startD = worldSvgContent.indexOf('d=' + quoteChar);
+const endD = worldSvgContent.indexOf(quoteChar, startD + 3);
+const worldPath = startD !== -1 && endD !== -1 ? worldSvgContent.slice(startD + 3, endD) : '';
 
-// Projection and routes for map
-const origin = { lon: 72.83, lat: 21.17, name: 'Surat, India' };
+// Projection and routes for EXACTLY the 6 focus markets requested by user:
+// 1. United Kingdom
+// 2. African markets
+// 3. Dubai, UAE
+// 4. Sri Lanka
+// 5. Bangladesh
+// 6. Asian markets
+const origin = { lon: 72.83, lat: 21.17, name: 'Surat (HQ & Plant)' };
 const markets = [
-  { id: 'uk', name: 'United Kingdom', region: 'Europe', lon: -0.12, lat: 51.5 },
-  { id: 'africa', name: 'African markets', region: 'Africa', lon: 8.68, lat: 9.08 },
-  { id: 'dubai', name: 'Dubai, UAE', region: 'Middle East', lon: 55.27, lat: 25.2 },
-  { id: 'sri-lanka', name: 'Sri Lanka', region: 'South Asia', lon: 80.77, lat: 7.87 },
-  { id: 'bangladesh', name: 'Bangladesh', region: 'South Asia', lon: 90.36, lat: 23.68 },
-  { id: 'asia', name: 'Asian markets', region: 'Asia Pacific', lon: 108.28, lat: 14.06 },
+  { 
+    id: 'uk', 
+    name: 'United Kingdom', 
+    lon: -0.12, 
+    lat: 51.5,
+    pill: { x: 425, y: 70, w: 126, h: 25 }
+  },
+  { 
+    id: 'africa', 
+    name: 'African markets', 
+    lon: 8.68, 
+    lat: 9.08,
+    pill: { x: 435, y: 236, w: 128, h: 25 }
+  },
+  { 
+    id: 'dubai', 
+    name: 'Dubai, UAE', 
+    lon: 55.27, 
+    lat: 25.2,
+    pill: { x: 578, y: 162, w: 100, h: 25 }
+  },
+  { 
+    id: 'sri-lanka', 
+    name: 'Sri Lanka', 
+    lon: 80.77, 
+    lat: 7.87,
+    pill: { x: 746, y: 280, w: 92, h: 25 }
+  },
+  { 
+    id: 'bangladesh', 
+    name: 'Bangladesh', 
+    lon: 90.36, 
+    lat: 23.68,
+    pill: { x: 822, y: 162, w: 102, h: 25 }
+  },
+  { 
+    id: 'asia', 
+    name: 'Asian markets', 
+    lon: 108.28, 
+    lat: 14.06,
+    pill: { x: 890, y: 220, w: 116, h: 25 }
+  },
 ];
 
 function project(lon, lat) {
@@ -83,56 +128,72 @@ const mapRoutes = markets.map(m => {
   };
 });
 
-// Load images as Base64
+// Load core images
 console.log('Loading high-resolution asset images...');
-const logoImg = toBase64Uri('frontend/public/assets/images/logo.webp');
-const heroImg = toBase64Uri('frontend/public/assets/images/hero-banner.webp');
-const resLabImg = toBase64Uri('frontend/public/assets/images/research-laboratory.webp');
-const aboutLabImg = toBase64Uri('frontend/public/assets/images/about-laboratory.webp');
+const logoImg = toBase64Uri(path.join(rootDir, 'frontend', 'public', 'assets', 'images', 'logo.webp'));
+const heroImg = toBase64Uri(path.join(rootDir, 'frontend', 'public', 'assets', 'images', 'hero-banner.webp'));
+const lineupImg = toBase64Uri(path.join(rootDir, 'frontend', 'public', 'assets', 'images', 'product-lineup.webp')) || heroImg;
+const resLabImg = toBase64Uri(path.join(rootDir, 'frontend', 'public', 'assets', 'images', 'research-laboratory.webp'));
 
-// Format images
-const fmtPowders = toBase64Uri('frontend/public/assets/images/format-powders.webp');
-const fmtTablets = toBase64Uri('frontend/public/assets/images/format-tablets.webp');
-const fmtCapsules = toBase64Uri('frontend/public/assets/images/format-capsules.webp');
-const fmtSachets = toBase64Uri('frontend/public/assets/images/format-sachets.webp');
-const fmtSyrups = toBase64Uri('frontend/public/assets/images/format-syrups.webp');
-const fmtEffervescent = toBase64Uri('frontend/public/assets/images/format-effervescent.webp');
-const fmtGummies = toBase64Uri('frontend/public/assets/images/format-gummies.webp');
-const fmtDrops = toBase64Uri('frontend/public/assets/images/format-drops.webp');
-const fmtGranules = toBase64Uri('frontend/public/assets/images/format-granules.webp');
+// Large high-res format image thumbnails for Page 4 (Capacities & Facilities)
+console.log('Preparing prominent high-res format images for Facilities (600x600 HD)...');
+async function getHighResFormat(filePath) {
+  const fullP = path.join(rootDir, filePath);
+  if (!fs.existsSync(fullP)) return '';
+  const buf = await sharp(fullP)
+    .resize(600, 600, { fit: 'cover', position: 'center' })
+    .webp({ quality: 92 })
+    .toBuffer();
+  return `data:image/webp;base64,${buf.toString('base64')}`;
+}
 
-// Gallery photos 01-10
+const fmtPowders = await getHighResFormat('frontend/public/assets/images/format-powders.webp');
+const fmtTablets = await getHighResFormat('frontend/public/assets/images/format-tablets.webp');
+const fmtCapsules = await getHighResFormat('frontend/public/assets/images/format-capsules.webp');
+const fmtSyrups = await getHighResFormat('frontend/public/assets/images/format-syrups.webp');
+const fmtSachets = await getHighResFormat('frontend/public/assets/images/format-sachets.webp');
+const fmtEffervescent = await getHighResFormat('frontend/public/assets/images/format-effervescent.webp');
+
+// Optimize 15 gallery photos for razor-sharp 300+ DPI print layout
+console.log('Optimizing 15 gallery photos for clean print layout...');
 const galleryImgs = [];
-for (let i = 1; i <= 10; i++) {
+for (let i = 1; i <= 15; i++) {
   const id = String(i).padStart(2, '0');
-  galleryImgs.push({
-    id,
-    uri: toBase64Uri(`frontend/public/assets/gallery/gallery-${id}.webp`)
-  });
+  const src = path.join(rootDir, 'frontend', 'public', 'assets', 'gallery', `gallery-${id}.webp`);
+  let uri = '';
+  if (fs.existsSync(src)) {
+    const optBuf = await sharp(src)
+      .resize(800, 533, { fit: 'cover', position: 'center' })
+      .webp({ quality: 84, effort: 5 })
+      .toBuffer();
+    uri = `data:image/webp;base64,${optBuf.toString('base64')}`;
+  }
+  galleryImgs.push({ id, uri });
 }
 
 // Certifications
-const certIds = ['who', 'haccp', 'iso-22000', 'gmp', 'fda', 'halal', 'fieo', 'fssai', 'pharmexcil', 'kosher', 'sgcci'];
+const certIds = ['who', 'haccp', 'iso-22000', 'gmp', 'fda', 'halal', 'fieo', 'fssai', 'pharmexcil', 'kosher', 'sgcci', 'shefexil'];
 const certNames = {
-  who: 'WHO',
+  who: 'WHO-GMP',
   haccp: 'HACCP',
   'iso-22000': 'ISO 22000:2018',
-  gmp: 'GMP',
-  fda: 'FDA',
+  gmp: 'GMP Quality',
+  fda: 'US FDA',
   halal: 'HALAL',
   fieo: 'FIEO',
   fssai: 'FSSAI',
   pharmexcil: 'Pharmexcil',
   kosher: 'KOSHER',
-  sgcci: 'SGCCI'
+  sgcci: 'SGCCI',
+  shefexil: 'SHEFEXIL'
 };
 const certImgs = certIds.map(id => ({
   id,
   name: certNames[id],
-  uri: toBase64Uri(`frontend/public/assets/certifications/${id}.webp`)
+  uri: toBase64Uri(path.join(rootDir, 'frontend', 'public', 'assets', 'certifications', `${id}.webp`))
 }));
 
-console.log('Generating premium corporate PDF HTML...');
+console.log('Generating crisp WHITE LIGHT theme brochure with #99c229 banners/buttons & white text...');
 
 const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -140,7 +201,7 @@ const htmlContent = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <title>Gomzi Life Science LLP - Corporate Profile & Product Catalogue</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
     @page {
       size: A4 portrait;
@@ -153,1679 +214,2035 @@ const htmlContent = `<!DOCTYPE html>
       padding: 0;
     }
 
+    /* PURE WHITE LIGHT THEME + #99c229 BRAND COLOR ONLY (NO DARK GREENS) */
     :root {
-      --green: #24452e;
-      --green-dark: #172d1e;
-      --green-light: #325e3f;
-      --lime: #8cc63f;
-      --lime-soft: #c8e39d;
-      --accent: #5e8c2c;
-      --ink: #1e241c;
-      --muted: #5e6857;
-      --paper: #f8f9f5;
-      --sage: #edf1e6;
-      --sage-light: #f4f6ef;
-      --line: #d8ded0;
-      --white: #ffffff;
-      --font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --brand: #99c229;          /* Exact Official Theme Lime: #99c229 */
+      --brand-hover: #88ad24;    /* Slightly deeper lime for crisp contrast */
+      --brand-soft: #eef6d8;     /* Ultra-light delicate lime background */
+      --brand-card: #f8faf4;     /* Crisp light tinted card surface */
+      --white: #ffffff;          /* Pure Crisp White Background */
+      --line: #e3edd6;           /* Clean Soft Border Line */
+      --ink: #181c14;            /* Sharp High-Legibility Charcoal Black Text */
+      --ink-muted: #525a4e;      /* Clean Muted Charcoal for Subtitles */
+      --font-main: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-script: 'Caveat', cursive, sans-serif;
     }
 
     body {
-      font-family: var(--font);
+      font-family: var(--font-main);
       color: var(--ink);
-      background: #eef2ea;
+      background: #f1f4ec;
       -webkit-font-smoothing: antialiased;
-      line-height: 1.5;
+      line-height: 1.48;
     }
 
-    /* Page container */
+    /* Page container: Exact 210mm x 297mm A4 sheet */
     .page {
       width: 210mm;
       height: 297mm;
       max-height: 297mm;
+      min-height: 297mm;
       overflow: hidden;
       position: relative;
-      background: var(--white);
+      background: #ffffff;
       page-break-after: always;
+      page-break-inside: avoid;
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
     }
 
-    /* Running header & footer */
-    .page-header {
-      padding: 10mm 14mm 4mm;
+    .page:last-child {
+      page-break-after: avoid;
+    }
+
+    /* Standard running bottom footer bar - sits flush at bottom */
+    .std-footer {
+      height: 16mm;
+      min-height: 16mm;
+      padding: 0 16mm 4mm;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--line);
-      background: var(--white);
-      z-index: 10;
+      margin-top: auto;
+      z-index: 20;
+      background: #ffffff;
     }
-    .page-header__left {
-      display: flex;
+
+    .page-badge-num {
+      background: var(--brand);
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 11.5pt;
+      padding: 3.5px 16px;
+      border-radius: 4px;
+      display: inline-flex;
       align-items: center;
-      gap: 8px;
-      font-size: 8pt;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--green);
+      justify-content: center;
+      letter-spacing: 0.05em;
+      box-shadow: 0 2px 6px rgba(153, 194, 41, 0.35);
     }
-    .page-header__dot {
-      width: 5px;
-      height: 5px;
-      background: var(--lime);
-      display: inline-block;
-    }
-    .page-header__logo {
-      height: 7mm;
+
+    .footer-logo {
+      height: 9.5mm;
+      max-width: 48mm;
       object-fit: contain;
     }
 
-    .page-footer {
-      margin-top: auto;
-      padding: 4mm 14mm 8mm;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-top: 1px solid var(--line);
-      font-size: 7.5pt;
-      color: var(--muted);
-      background: var(--white);
-      z-index: 10;
-    }
-    .page-footer strong {
-      color: var(--green);
-    }
-    .page-footer__num {
-      font-weight: 700;
-      color: var(--green);
-      font-size: 8pt;
-    }
-
-    .page-content {
-      flex: 1;
-      padding: 6mm 14mm 6mm;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-    }
-
-    /* Typography */
-    h1, h2, h3, h4 {
-      color: var(--green-dark);
-      font-weight: 700;
-      line-height: 1.15;
-      letter-spacing: -0.03em;
-    }
-    h2 {
-      font-size: 20pt;
-      margin-bottom: 3mm;
-    }
-    h3 {
-      font-size: 13pt;
-      margin-bottom: 2mm;
-    }
-    p {
-      font-size: 9pt;
-      color: var(--muted);
-      line-height: 1.55;
-    }
-    .lead {
-      font-size: 10.5pt;
-      color: var(--ink);
-      font-weight: 500;
-      line-height: 1.5;
-      margin-bottom: 3mm;
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 7.5pt;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 2mm;
-    }
-    .eyebrow::before {
-      content: '';
-      width: 5px;
-      height: 5px;
-      background: var(--lime);
-    }
-
-    /* Cards & Grids */
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6mm;
-    }
-    .grid-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 4.5mm;
-    }
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 4mm;
-    }
-
-    .card {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      padding: 4mm 5mm;
-      position: relative;
+    /* Botanical SVG decorations matching website motif */
+    .botanical-accent {
+      position: absolute;
+      top: 3mm;
+      right: 3mm;
+      width: 36mm;
+      height: 36mm;
+      pointer-events: none;
+      z-index: 4;
+      opacity: 0.95;
     }
 
     /* ================================================================
-       PAGE 1: COVER
+       PAGE 1: COVER PAGE (WHITE LIGHT THEME WITH #99c229 BANNERS)
        ================================================================ */
-    .cover-page {
-      background: #fafbf8;
-      padding: 0;
-      justify-content: space-between;
-    }
-    .cover-top-ribbon {
-      background: var(--green);
-      color: var(--white);
-      padding: 4.5mm 16mm;
+    .p1-cover {
+      background: #ffffff;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 8pt;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-    }
-    .cover-top-ribbon span:last-child {
-      color: var(--lime);
+      flex-direction: column;
+      padding: 0;
+      position: relative;
     }
 
-    .cover-hero-section {
-      padding: 10mm 16mm 0;
+    .p1-top-ribbon {
+      width: 100%;
+      height: 16mm;
+      background: #ffffff;
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding-left: 20mm;
+      border-bottom: 3px solid var(--brand);
     }
-    .cover-logo-wrapper {
-      margin-bottom: 6mm;
+    .p1-top-ribbon::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 15mm;
+      background: var(--brand);
+      clip-path: polygon(0 0, 100% 0, 65% 100%, 0% 100%);
     }
-    .cover-logo {
-      height: 14mm;
-      object-fit: contain;
-    }
-    .cover-tagline {
-      display: inline-block;
-      font-size: 9pt;
+    .p1-top-ribbon span {
+      font-family: var(--font-main);
+      font-style: italic;
+      font-size: 11.5pt;
       font-weight: 700;
-      letter-spacing: 0.16em;
-      color: var(--accent);
-      text-transform: uppercase;
+      color: var(--brand);
+      letter-spacing: 0.02em;
+    }
+
+    .p1-header {
+      padding: 7mm 20mm 3mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .p1-logo {
+      height: 19mm;
+      object-fit: contain;
       margin-bottom: 2mm;
     }
-    .cover-title {
-      font-size: 34pt;
+    .p1-logo-tagline {
+      font-size: 8.5pt;
       font-weight: 800;
-      line-height: 0.98;
-      letter-spacing: -0.05em;
-      color: var(--green-dark);
+      letter-spacing: 0.26em;
+      color: var(--brand);
+      text-transform: uppercase;
       margin-bottom: 4mm;
     }
-    .cover-title span {
-      color: var(--accent);
+    .p1-lead-name {
+      font-size: 14.5pt;
+      color: var(--brand);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-bottom: 2.5mm;
     }
-    .cover-subtitle {
-      font-size: 11pt;
-      max-width: 145mm;
-      color: var(--muted);
-      line-height: 1.5;
-      margin-bottom: 5mm;
+    
+    /* BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT */
+    .p1-mfg-box {
+      background: var(--brand);
+      color: #ffffff;
+      padding: 3.8mm 16mm;
+      border-radius: 6px;
+      margin-bottom: 4.5mm;
+      box-shadow: 0 4px 14px rgba(153, 194, 41, 0.35);
+    }
+    .p1-mfg-box h1 {
+      font-size: 28pt;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      line-height: 1.1;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+    .p1-mfg-box span {
+      font-size: 13.8pt;
+      font-style: italic;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: #ffffff;
+    }
+    .p1-mfg-box strong {
+      font-style: normal;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      color: #ffffff;
+      text-decoration: underline;
     }
 
-    .cover-stats-row {
+    .p1-stats-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18mm;
+      margin-bottom: 4.5mm;
+      width: 100%;
+    }
+    .p1-stat-item {
+      text-align: center;
+      min-width: 48mm;
+      white-space: nowrap;
+    }
+    .p1-stat-val {
+      font-size: 32pt;
+      font-weight: 900;
+      color: var(--brand);
+      line-height: 1;
+      margin-bottom: 1.5mm;
+      white-space: nowrap;
+    }
+    .p1-stat-lbl {
+      font-size: 11pt;
+      font-weight: 800;
+      font-style: italic;
+      color: var(--ink);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .p1-stat-divider {
+      width: 2px;
+      height: 13mm;
+      background: var(--brand);
+      opacity: 0.4;
+    }
+
+    /* Angled hero picture frame */
+    .p1-hero-container {
+      flex: 1;
+      position: relative;
+      margin: 0 12mm 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .p1-hero-frame {
+      width: 100%;
+      height: 124mm;
+      position: relative;
+      clip-path: polygon(14% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 18%);
+      background: var(--brand);
+      padding: 3.5px;
+      box-shadow: 0 10px 24px rgba(153, 194, 41, 0.25);
+    }
+    .p1-hero-inner {
+      width: 100%;
+      height: 100%;
+      clip-path: polygon(14% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 18%);
+      background: #ffffff;
+      overflow: hidden;
+      position: relative;
+    }
+    .p1-hero-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 38%;
+      display: block;
+    }
+    .p1-hero-overlay-tag {
+      position: absolute;
+      top: 6mm;
+      right: 6mm;
+      background: var(--brand);
+      color: #ffffff;
+      padding: 3.5mm 6mm;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 8.5pt;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    }
+    .p1-hero-overlay-tag span:first-child {
+      color: #ffffff;
+      font-size: 10pt;
+    }
+
+    /* BANNER: #99c229 BACKGROUND WITH WHITE TEXT */
+    .p1-bottom-ribbon {
+      background: var(--brand);
+      color: #ffffff;
+      padding: 6mm 16mm;
+      text-align: center;
+      margin-top: auto;
+      border-top: 2px solid #ffffff;
+    }
+    .p1-bottom-ribbon h3 {
+      font-size: 14pt;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      margin-bottom: 1.5mm;
+      color: #ffffff;
+    }
+    .p1-bottom-ribbon p {
+      font-size: 10.5pt;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: #ffffff;
+      text-transform: uppercase;
+    }
+
+    /* ================================================================
+       PAGE 2: ABOUT US (CLEAN LIGHT THEME)
+       ================================================================ */
+    .p2-about {
+      padding: 12mm 16mm 0;
+      background: #ffffff;
+    }
+
+    .title-know-about {
+      margin-bottom: 3.5mm;
+    }
+    .title-know-about .script-top {
+      font-family: var(--font-script);
+      font-size: 27pt;
+      color: var(--brand);
+      display: block;
+      line-height: 1;
+      margin-bottom: -1mm;
+    }
+    .title-know-about h2 {
+      font-size: 33pt;
+      font-weight: 900;
+      color: var(--brand);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .p2-intro-text {
+      font-size: 9.8pt;
+      color: var(--ink);
+      line-height: 1.68;
+      margin-bottom: 5mm;
+      text-align: justify;
+    }
+    .p2-intro-text strong {
+      color: var(--brand);
+    }
+    .p2-intro-text p + p {
+      margin-top: 3mm;
+    }
+
+    .p2-pillars-card {
+      background: var(--brand-card);
+      border: 1.5px solid var(--line);
+      border-top: 4px solid var(--brand);
+      border-radius: 8px;
+      padding: 6mm 7.5mm;
+      margin-bottom: 5mm;
+      box-shadow: 0 3px 10px rgba(153, 194, 41, 0.08);
+    }
+    .p2-pillars-grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      gap: 4mm;
+      gap: 6.5mm;
+    }
+    .p2-pillar-col h3 {
+      font-size: 13.5pt;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 2mm;
+      letter-spacing: 0.04em;
+      border-bottom: 2.5px solid var(--brand);
+      padding-bottom: 1.2mm;
+      display: inline-block;
+    }
+    .p2-pillar-col p {
+      font-size: 8.6pt;
+      line-height: 1.6;
+      color: var(--ink);
+      text-align: justify;
+    }
+
+    .p2-badges-row {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 1.5mm 6mm;
       margin-bottom: 5mm;
     }
-    .cover-stat-box {
-      background: var(--white);
-      border: 1px solid var(--line);
-      padding: 3mm 4mm;
-      border-left: 3px solid var(--lime);
+    .p2-badge-wrap {
+      text-align: center;
+      width: 52mm;
     }
-    .cover-stat-val {
-      font-size: 15pt;
+    .p2-badge-wrap h4 {
+      font-size: 12.5pt;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      color: var(--brand);
+      margin-bottom: 3mm;
+    }
+    /* BADGE: #99c229 WITH WHITE ICON */
+    .p2-badge-circle {
+      width: 38mm;
+      height: 38mm;
+      border-radius: 50%;
+      background: var(--brand);
+      margin: 0 auto 3mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(153, 194, 41, 0.3);
+      border: 3.5px solid #ffffff;
+      color: #ffffff;
+    }
+    .p2-badge-circle svg {
+      width: 21mm;
+      height: 21mm;
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .p2-badge-sub {
+      font-size: 8.2pt;
       font-weight: 800;
-      color: var(--green);
-      line-height: 1;
-      margin-bottom: 1mm;
-    }
-    .cover-stat-lbl {
-      font-size: 7.5pt;
-      font-weight: 600;
-      color: var(--muted);
+      color: var(--ink);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
-    .cover-visual {
-      width: 100%;
-      height: 85mm;
-      overflow: hidden;
-      position: relative;
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
-      background: #eef2e7;
-    }
-    .cover-visual img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center 30%;
-    }
-    .cover-visual-badge {
-      position: absolute;
-      bottom: 4mm;
-      right: 6mm;
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(4px);
-      padding: 2.5mm 5mm;
-      font-size: 7.5pt;
-      font-weight: 600;
-      color: var(--green);
-      border: 1px solid var(--line);
-    }
-
-    .cover-bottom-bar {
-      background: var(--green-dark);
-      color: var(--white);
-      padding: 5mm 16mm;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .cover-accredit {
-      font-size: 7.5pt;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      color: #dbe8d2;
-    }
-    .cover-accredit strong {
-      color: var(--lime);
-    }
-    .cover-location {
-      font-size: 7.5pt;
-      color: #b7c7ad;
-    }
-
-    /* ================================================================
-       PAGE 2: ABOUT US
-       ================================================================ */
-    .about-top-grid {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 6mm;
-      margin-bottom: 5mm;
-    }
-    .about-visual-box {
-      position: relative;
-      background: var(--sage);
-      border: 1px solid var(--line);
-      height: 62mm;
-      overflow: hidden;
-    }
-    .about-visual-box img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: 60% center;
-    }
-    .about-caption-box {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(36, 69, 46, 0.92);
-      color: var(--white);
-      padding: 3mm 4mm;
-      font-size: 8pt;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .about-caption-box strong {
-      color: var(--lime);
-    }
-
-    .pillars-grid {
+    .p2-infra-strip {
+      background: var(--brand-card);
+      border: 1.5px solid var(--line);
+      border-left: 5px solid var(--brand);
+      border-radius: 8px;
+      padding: 4.5mm 7mm;
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      gap: 4mm;
-      margin-top: 4mm;
-    }
-    .pillar-card {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      padding: 4mm 4.5mm;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-    }
-    .pillar-num {
-      font-size: 7pt;
-      font-weight: 800;
-      color: var(--accent);
-      letter-spacing: 0.1em;
-      margin-bottom: 1.5mm;
-    }
-    .pillar-title {
-      font-size: 11pt;
-      font-weight: 700;
-      color: var(--green);
-      margin-bottom: 2mm;
-      line-height: 1.2;
-    }
-    .pillar-desc {
-      font-size: 8pt;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    .key-facts-strip {
-      margin-top: 5mm;
-      background: var(--sage);
-      border: 1px solid var(--line);
-      padding: 3.5mm 6mm;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 4mm;
-      text-align: center;
-    }
-    .key-fact-item strong {
-      display: block;
-      font-size: 12pt;
-      color: var(--green);
-      font-weight: 800;
-    }
-    .key-fact-item span {
-      font-size: 7pt;
-      color: var(--muted);
-      text-transform: uppercase;
-      font-weight: 600;
-    }
-
-    /* ================================================================
-       PAGE 3: 100% PRIVATE LABELLING & CONTRACT MFG
-       ================================================================ */
-    .workflow-timeline {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 4mm 5mm;
-      margin: 5mm 0;
-    }
-    .workflow-step {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      padding: 3.5mm 4mm;
-      position: relative;
-    }
-    .workflow-step-badge {
-      display: inline-block;
-      width: 22px;
-      height: 22px;
-      line-height: 22px;
-      text-align: center;
-      background: var(--green);
-      color: var(--white);
-      font-size: 8pt;
-      font-weight: 700;
+      gap: 5.5mm;
       margin-bottom: 2mm;
     }
-    .workflow-step h4 {
-      font-size: 9.5pt;
-      margin-bottom: 1.5mm;
-      color: var(--green-dark);
-    }
-    .workflow-step p {
-      font-size: 7.8pt;
-      line-height: 1.45;
-    }
-
-    .pl-banner {
-      background: var(--green);
-      color: var(--white);
-      padding: 5mm 6mm;
-      display: grid;
-      grid-template-columns: 1.3fr 0.7fr;
-      gap: 6mm;
-      align-items: center;
-      margin-top: 4mm;
-    }
-    .pl-banner h3 {
-      color: var(--white);
-      font-size: 13pt;
-      margin-bottom: 2mm;
-    }
-    .pl-banner p {
-      color: #cde0c4;
-      font-size: 8.5pt;
-      line-height: 1.5;
-    }
-    .pl-banner-checklist {
-      list-style: none;
-      display: grid;
-      gap: 2mm;
-      font-size: 8pt;
-      color: #e2edd9;
-    }
-    .pl-banner-checklist li {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .pl-banner-checklist li::before {
-      content: '✓';
-      color: var(--lime);
-      font-weight: 800;
-    }
-
-    /* ================================================================
-       PAGE 4 & 5: CAPACITIES & DOSAGE FORMATS
-       ================================================================ */
-    .formats-grid-cards {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4.5mm;
-      margin-top: 3mm;
-    }
-    .format-entry {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      display: grid;
-      grid-template-columns: 36mm 1fr;
-      overflow: hidden;
-      height: 38mm;
-    }
-    .format-entry__img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      background: var(--sage);
-    }
-    .format-entry__body {
-      padding: 3mm 3.5mm;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .format-entry__header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-    }
-    .format-entry__header h4 {
-      font-size: 10pt;
-      color: var(--green);
-    }
-    .format-entry__num {
-      font-size: 7.5pt;
-      font-weight: 800;
-      color: var(--accent);
-    }
-    .format-entry__subtitle {
-      font-size: 7.5pt;
-      color: var(--muted);
-      font-weight: 600;
-      margin-bottom: 1.5mm;
-    }
-    .format-entry__desc {
-      font-size: 7.5pt;
-      line-height: 1.4;
-      color: var(--ink);
-      margin-bottom: 1.5mm;
-    }
-    .format-entry__tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1.5mm;
-    }
-    .format-tag {
-      font-size: 6.5pt;
-      font-weight: 600;
-      background: var(--sage);
-      border: 1px solid var(--line);
-      padding: 0.8mm 2mm;
-      color: var(--green);
-    }
-
-    /* Capabilities pills */
-    .caps-pillars {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 3.5mm;
-      margin-top: 4mm;
-    }
-    .caps-pill {
-      background: var(--white);
-      border: 1px solid var(--line);
-      border-left: 3px solid var(--green);
-      padding: 3mm 3.5mm;
-    }
-    .caps-pill strong {
-      display: block;
-      font-size: 8.5pt;
-      color: var(--green);
-      margin-bottom: 1mm;
-    }
-    .caps-pill span {
-      font-size: 7.2pt;
-      color: var(--muted);
-      line-height: 1.4;
-      display: block;
-    }
-
-    /* ================================================================
-       PAGE 6: PHOTO GALLERY
-       ================================================================ */
-    .gallery-grid-pdf {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 3.5mm;
-      margin-top: 3mm;
-    }
-    .gallery-card-pdf {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      display: grid;
-      grid-template-columns: 38mm 1fr;
-      height: 33mm;
-      overflow: hidden;
-    }
-    .gallery-card-pdf__img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      background: var(--sage);
-    }
-    .gallery-card-pdf__info {
-      padding: 2.5mm 3.5mm;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .gallery-card-pdf__num {
-      font-size: 7pt;
-      font-weight: 800;
-      color: var(--accent);
-      margin-bottom: 0.8mm;
-    }
-    .gallery-card-pdf__title {
-      font-size: 9.5pt;
-      font-weight: 700;
-      color: var(--green-dark);
-      margin-bottom: 1mm;
-      line-height: 1.2;
-    }
-    .gallery-card-pdf__desc {
-      font-size: 7.2pt;
-      color: var(--muted);
-      line-height: 1.35;
-    }
-
-    /* ================================================================
-       PAGE 7: QUALITY & R&D
-       ================================================================ */
-    .qa-layout {
-      display: grid;
-      grid-template-columns: 1.05fr 0.95fr;
-      gap: 6mm;
-      margin-bottom: 5mm;
-    }
-    .qa-points-list {
-      display: grid;
-      gap: 3mm;
-    }
-    .qa-point-item {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      padding: 3mm 4mm;
-      border-left: 3px solid var(--accent);
-    }
-    .qa-point-item h4 {
+    .p2-infra-col h5 {
       font-size: 9pt;
-      color: var(--green);
-      margin-bottom: 1mm;
-    }
-    .qa-point-item p {
-      font-size: 7.5pt;
-      line-height: 1.45;
-    }
-
-    .why-gomzi-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 2.5mm 5mm;
-      background: var(--sage-light);
-      border: 1px solid var(--line);
-      padding: 4.5mm 6mm;
-      margin-top: 4mm;
-    }
-    .why-item {
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 1.2mm;
       display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      font-size: 8pt;
-      color: var(--ink);
-    }
-    .why-num {
-      font-weight: 800;
-      color: var(--green);
-      font-size: 7.5pt;
-      min-width: 18px;
-    }
-
-    /* ================================================================
-       PAGE 8: GLOBAL PRESENCE & MAP
-       ================================================================ */
-    .map-container-pdf {
-      background: var(--sage);
-      border: 1px solid var(--line);
-      padding: 4mm;
-      margin: 3mm 0 4mm;
-      position: relative;
-    }
-    .map-svg-pdf {
-      width: 100%;
-      height: 70mm;
-      display: block;
-    }
-    .map-corridors-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 3.5mm;
-    }
-    .corridor-box {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      padding: 3mm 3.5mm;
-    }
-    .corridor-box strong {
-      display: block;
-      font-size: 8.5pt;
-      color: var(--green);
-      margin-bottom: 0.8mm;
-    }
-    .corridor-box span {
-      display: block;
-      font-size: 7.2pt;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-
-    /* ================================================================
-       PAGE 9: CERTIFICATIONS & CONTACT
-       ================================================================ */
-    .certs-grid-pdf {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 3mm;
-      margin: 3mm 0 6mm;
-    }
-    .cert-box-pdf {
-      background: var(--white);
-      border: 1px solid var(--line);
-      padding: 3mm 2mm;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      min-height: 24mm;
+      gap: 5px;
     }
-    .cert-box-pdf img {
-      max-height: 14mm;
-      max-width: 28mm;
-      object-fit: contain;
-      margin-bottom: 1.5mm;
-    }
-    .cert-box-pdf span {
-      font-size: 7pt;
-      font-weight: 700;
-      color: var(--green);
+    .p2-infra-col p {
+      font-size: 7.8pt;
+      color: var(--ink-muted);
+      line-height: 1.48;
     }
 
-    .contact-card-pdf {
-      background: var(--green-dark);
-      color: var(--white);
-      padding: 6mm 8mm;
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 8mm;
+    /* ================================================================
+       PAGE 3: 100% THIRD PARTY MANUFACTURING
+       ================================================================ */
+    .p3-manufacturing {
+      padding: 12mm 16mm 0;
+      background: #ffffff;
     }
-    .contact-card-pdf h3 {
-      color: var(--white);
-      font-size: 13pt;
+
+    .title-3rd-party {
+      text-align: right;
       margin-bottom: 2mm;
     }
-    .contact-card-pdf p {
-      color: #c9dbbe;
-      font-size: 8pt;
-      line-height: 1.6;
+    .title-3rd-party .script-top {
+      font-family: var(--font-script);
+      font-size: 24pt;
+      color: var(--brand);
+      display: inline-block;
+      margin-right: 2.5mm;
     }
-    .contact-card-pdf address {
-      font-style: normal;
-      font-size: 8pt;
-      color: #e5f0dc;
-      line-height: 1.6;
-      margin-top: 2mm;
-    }
-    .contact-detail-row {
-      display: grid;
-      gap: 2mm;
-      margin-top: 3mm;
-      font-size: 8pt;
-    }
-    .contact-detail-row div {
-      display: flex;
-      justify-content: space-between;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-      padding-bottom: 1mm;
-    }
-    .contact-detail-row span {
-      color: #b7cba9;
-    }
-    .contact-detail-row strong {
-      color: var(--white);
+    .title-3rd-party h2 {
+      display: inline-block;
+      font-size: 27pt;
+      font-weight: 900;
+      color: var(--brand);
     }
 
-    .notice-box {
-      margin-top: 3mm;
-      font-size: 6.8pt;
-      color: #8b9684;
-      line-height: 1.45;
+    .p3-subhead {
+      font-size: 11pt;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      color: var(--brand);
+      text-transform: uppercase;
+      margin-bottom: 3.5mm;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .p3-subhead::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      background: var(--brand);
+      display: inline-block;
+    }
+
+    .p3-desc {
+      font-size: 9.6pt;
+      line-height: 1.65;
+      color: var(--ink);
+      text-align: justify;
+      margin-bottom: 3.5mm;
+    }
+    .p3-desc p + p {
+      margin-top: 2.5mm;
+    }
+
+    .p3-product-showcase {
+      margin: 2mm 0 3mm;
+      text-align: center;
+      position: relative;
+    }
+    .p3-product-img {
+      width: 100%;
+      height: 94mm;
+      object-fit: contain;
+      filter: drop-shadow(0 6px 16px rgba(153, 194, 41, 0.18));
+    }
+
+    .p3-callout-grid {
+      background: var(--brand-card);
+      border: 1.5px solid var(--line);
+      border-top: 4px solid var(--brand);
+      border-radius: 8px;
+      padding: 4.8mm 6.5mm;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5mm;
+      margin-bottom: 3mm;
+    }
+    .p3-callout-item h4 {
+      font-size: 9.8pt;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 1.2mm;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .p3-callout-item p {
+      font-size: 8.2pt;
+      line-height: 1.5;
+      color: var(--ink);
       text-align: justify;
     }
+
+    .p3-timeline-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 3mm;
+      margin-bottom: 2mm;
+    }
+    .p3-step-card {
+      background: var(--brand-card);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2.5mm 3mm;
+      text-align: center;
+    }
+    .p3-step-num {
+      font-size: 8pt;
+      font-weight: 900;
+      color: #ffffff;
+      background: var(--brand);
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-bottom: 1mm;
+    }
+    .p3-step-title {
+      font-size: 7.8pt;
+      font-weight: 800;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+
+    /* ================================================================
+       PAGE 4: CAPACITIES AND FACILITIES (PROMINENT LARGE PRODUCT IMAGES)
+       ================================================================ */
+    .p4-facilities {
+      padding: 10mm 16mm 0;
+      background: #ffffff;
+    }
+
+    .title-capacities {
+      margin-bottom: 2.5mm;
+    }
+    .title-capacities span {
+      font-size: 13pt;
+      color: var(--ink-muted);
+      display: block;
+      font-weight: 600;
+    }
+    .title-capacities h2 {
+      font-size: 30pt;
+      font-weight: 900;
+      color: var(--brand);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .p4-chevrons-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3.2mm;
+      margin-bottom: 3.5mm;
+    }
+
+    /* Chevron Card with PROMINENT Large Product Thumbnails */
+    .p4-chev-card {
+      height: 25.5mm;
+      background: #ffffff;
+      border: 1.5px solid var(--line);
+      border-radius: 40px;
+      display: flex;
+      align-items: center;
+      padding: 0 4mm;
+      box-shadow: 0 3px 12px rgba(153, 194, 41, 0.1);
+      position: relative;
+    }
+    .p4-chev-card.left-aligned {
+      flex-direction: row;
+    }
+    .p4-chev-card.right-aligned {
+      flex-direction: row-reverse;
+    }
+
+    /* BUTTON/BADGE: #99c229 WITH WHITE TEXT */
+    .p4-chev-num {
+      width: 17mm;
+      height: 17mm;
+      border-radius: 50%;
+      background: var(--brand);
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 13pt;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 7px rgba(153, 194, 41, 0.3);
+      border: 2.2px solid #ffffff;
+    }
+
+    .p4-chev-body {
+      flex: 1;
+      padding: 0 6mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .p4-chev-card.right-aligned .p4-chev-body {
+      text-align: right;
+    }
+    .p4-chev-title {
+      font-size: 13.5pt;
+      font-weight: 900;
+      color: var(--ink);
+      letter-spacing: 0.04em;
+    }
+    .p4-chev-cap {
+      font-size: 9.8pt;
+      font-weight: 800;
+      color: var(--brand);
+    }
+
+    .p4-chev-arrows {
+      font-size: 17pt;
+      color: var(--brand);
+      letter-spacing: -0.08em;
+      margin: 0 4mm;
+      font-weight: 900;
+    }
+
+    /* PROMINENT HD PRODUCT IMAGE BADGE - 30mm DIAMETER */
+    .p4-chev-icon-badge {
+      width: 30mm;
+      height: 30mm;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+      box-shadow: 0 4px 14px rgba(153, 194, 41, 0.25);
+    }
+    .p4-chev-icon-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scale(1.1);
+    }
+
+    /* BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT */
+    .p4-private-ribbon {
+      background: var(--brand);
+      color: #ffffff;
+      padding: 3mm 14mm;
+      border-radius: 5px;
+      text-align: center;
+      font-size: 13.5pt;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 3.5mm;
+      box-shadow: 0 3px 10px rgba(153, 194, 41, 0.3);
+    }
+
+    .p4-pillars-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 7mm;
+      row-gap: 2.8mm;
+      margin-bottom: 2mm;
+    }
+    .p4-pill-item {
+      background: var(--brand-card);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--brand);
+      border-radius: 6px;
+      padding: 2.8mm 4.5mm;
+    }
+    .p4-pill-item h4 {
+      font-size: 9.8pt;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 0.8mm;
+    }
+    .p4-pill-item p {
+      font-size: 8.2pt;
+      color: var(--ink-muted);
+      line-height: 1.45;
+    }
+
+    /* ================================================================
+       PAGE 5: COMPANY PHOTO GALLERY (WHITE LIGHT THEME)
+       ================================================================ */
+    .p5-gallery {
+      padding: 13mm 16mm 0;
+      background: #ffffff;
+    }
+
+    .title-gallery {
+      margin-bottom: 4mm;
+    }
+    .title-gallery h2 {
+      display: inline-block;
+      font-size: 31pt;
+      font-weight: 900;
+      color: var(--brand);
+      margin-right: 3mm;
+    }
+    .title-gallery span {
+      font-family: var(--font-script);
+      font-size: 25pt;
+      color: var(--brand);
+    }
+
+    .p5-gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(5, 46.5mm);
+      gap: 4mm;
+      margin-bottom: 2mm;
+    }
+    .p5-photo-card {
+      background: #ffffff;
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      position: relative;
+    }
+    .p5-photo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ================================================================
+       PAGE 6: QUALITY ASSURANCE & R&D & WHY GOMZI
+       ================================================================ */
+    .p6-quality {
+      padding: 13mm 16mm 0;
+      background: #ffffff;
+    }
+
+    .title-qa {
+      margin-bottom: 3.5mm;
+    }
+    .title-qa span {
+      font-size: 14pt;
+      color: var(--ink-muted);
+      display: block;
+      font-weight: 600;
+    }
+    .title-qa h2 {
+      font-size: 32pt;
+      font-weight: 900;
+      color: var(--brand);
+      line-height: 1;
+    }
+
+    .p6-qa-split {
+      display: flex;
+      gap: 7mm;
+      margin-bottom: 5mm;
+      align-items: center;
+    }
+    .p6-qa-text {
+      flex: 1;
+      font-size: 9.8pt;
+      line-height: 1.72;
+      color: var(--ink);
+      text-align: justify;
+    }
+    .p6-qa-text p + p {
+      margin-top: 3.2mm;
+    }
+
+    .p6-lab-thumb-wrap {
+      width: 58mm;
+      height: 64mm;
+      border-radius: 50% 50% 14px 14px;
+      overflow: hidden;
+      flex-shrink: 0;
+      border: 4px solid var(--brand);
+      box-shadow: 0 6px 18px rgba(153, 194, 41, 0.25);
+    }
+    .p6-lab-thumb-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT */
+    .p6-rnd-card {
+      background: var(--brand);
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 6mm 8mm;
+      margin-bottom: 5mm;
+      box-shadow: 0 4px 14px rgba(153, 194, 41, 0.3);
+    }
+    .p6-rnd-card h3 {
+      font-size: 15pt;
+      font-weight: 900;
+      margin-bottom: 1.8mm;
+      letter-spacing: 0.04em;
+      color: #ffffff;
+    }
+    .p6-rnd-card p {
+      font-size: 9.5pt;
+      line-height: 1.68;
+      color: #ffffff;
+      text-align: justify;
+    }
+
+    .p6-why-box {
+      background: var(--brand-card);
+      border: 1.5px solid var(--line);
+      border-top: 4px solid var(--brand);
+      border-radius: 8px;
+      padding: 6mm 8mm;
+      margin-bottom: 2mm;
+    }
+    .p6-why-header {
+      display: flex;
+      align-items: center;
+      gap: 4mm;
+      margin-bottom: 4mm;
+      border-bottom: 1.5px solid var(--line);
+      padding-bottom: 2mm;
+    }
+    .p6-why-header h3 {
+      font-size: 18pt;
+      font-weight: 900;
+      color: var(--brand);
+      letter-spacing: 0.06em;
+    }
+    .p6-why-header img {
+      height: 7.5mm;
+      object-fit: contain;
+    }
+
+    .p6-why-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 8mm;
+      row-gap: 3mm;
+    }
+    .p6-why-item {
+      font-size: 9pt;
+      color: var(--ink);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 2.5mm;
+      line-height: 1.45;
+      background: #ffffff;
+      padding: 2mm 3.5mm;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+    .p6-why-num {
+      color: #ffffff;
+      background: var(--brand);
+      min-width: 5.5mm;
+      height: 5.5mm;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 7.5pt;
+    }
+
+    /* ================================================================
+       PAGE 7: PRODUCT CATEGORY (WHITE LIGHT THEME WITH #99c229 ACCENTS)
+       ================================================================ */
+    .p7-category {
+      padding: 13mm 16mm 0;
+      background: #ffffff;
+    }
+
+    .title-category {
+      margin-bottom: 4mm;
+    }
+    .title-category span {
+      font-size: 14pt;
+      color: var(--ink-muted);
+      display: block;
+      font-weight: 600;
+    }
+    .title-category h2 {
+      font-size: 32pt;
+      font-weight: 900;
+      color: var(--brand);
+      line-height: 1;
+    }
+
+    /* POWDERS */
+    .p7-powders-block {
+      background: var(--brand-card);
+      border: 1.5px solid var(--line);
+      border-left: 5px solid var(--brand);
+      border-radius: 8px;
+      padding: 5.5mm 7mm;
+      margin-bottom: 4mm;
+    }
+    .p7-powders-head {
+      display: flex;
+      align-items: center;
+      gap: 2.5mm;
+      margin-bottom: 2mm;
+    }
+    .p7-powders-head h3 {
+      font-size: 13pt;
+      font-weight: 900;
+      color: var(--brand);
+      letter-spacing: 0.05em;
+    }
+    .p7-powders-text {
+      font-size: 8.6pt;
+      line-height: 1.62;
+      color: var(--ink);
+      text-align: justify;
+    }
+
+    .p7-grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      margin-bottom: 4mm;
+    }
+    .p7-cat-box {
+      background: #ffffff;
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
+      padding: 4.5mm 5.5mm;
+      box-shadow: 0 2px 6px rgba(153, 194, 41, 0.06);
+    }
+    .p7-cat-box.accent-bg {
+      background: var(--brand-card);
+      border-top: 3.5px solid var(--brand);
+    }
+    .p7-cat-title {
+      font-size: 10.5pt;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 1.8mm;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+    }
+    .p7-cat-desc {
+      font-size: 8.5pt;
+      line-height: 1.58;
+      color: var(--ink);
+      text-align: justify;
+    }
+
+    .p7-full-box {
+      background: #ffffff;
+      border: 1.5px solid var(--line);
+      border-left: 5px solid var(--brand);
+      border-radius: 6px;
+      padding: 4.5mm 5.5mm;
+      margin-bottom: 4mm;
+    }
+
+    /* ================================================================
+       PAGE 8: GLOBAL PRESENCE (WHITE LIGHT THEME WITH #99c229 BANNERS)
+       ================================================================ */
+    .p8-global {
+      padding: 0;
+      background: #ffffff;
+    }
+
+    .p8-header-top {
+      padding: 7mm 16mm 2.5mm;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .p8-top-logo {
+      height: 11mm;
+      object-fit: contain;
+    }
+
+    /* BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT */
+    .p8-title-banner {
+      background: var(--brand);
+      color: #ffffff;
+      padding: 4mm 16mm;
+      margin-bottom: 3.5mm;
+      box-shadow: 0 3px 10px rgba(153, 194, 41, 0.3);
+    }
+    .p8-title-banner h2 {
+      font-size: 26pt;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+
+    .p8-metrics-bar {
+      padding: 0 16mm;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 3.5mm;
+    }
+    .p8-metric-duo {
+      display: flex;
+      gap: 14mm;
+      align-items: center;
+    }
+    .p8-metric-val {
+      font-size: 28pt;
+      font-weight: 900;
+      color: var(--brand);
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .p8-metric-lbl {
+      font-size: 9.8pt;
+      font-weight: 800;
+      font-style: italic;
+      color: var(--ink);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .p8-mfg-lead {
+      text-align: right;
+    }
+    .p8-mfg-lead span {
+      font-size: 11pt;
+      color: var(--ink-muted);
+      display: block;
+      font-weight: 600;
+    }
+    /* BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT */
+    .p8-mfg-badge {
+      background: var(--brand);
+      color: #ffffff;
+      padding: 2.2mm 7mm;
+      border-radius: 4px;
+      font-size: 11.5pt;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      display: inline-block;
+      margin-top: 1mm;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(153, 194, 41, 0.35);
+    }
+
+    /* ONLY THE 6 COUNTRIES / MARKETS SHOWN IN MAP - 2 ROWS OF 3 */
+    .p8-focus-corridors {
+      padding: 0 16mm;
+      margin-bottom: 4mm;
+    }
+    .p8-corridor-title {
+      font-size: 8.5pt;
+      font-weight: 900;
+      color: var(--brand);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 2mm;
+    }
+    .p8-corridor-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2.5mm 5mm;
+    }
+    .corridor-pill {
+      background: var(--brand-card);
+      border: 1.5px solid var(--brand);
+      border-radius: 20px;
+      padding: 2.2mm 5mm;
+      font-size: 9pt;
+      font-weight: 800;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+      box-shadow: 0 1px 4px rgba(153, 194, 41, 0.12);
+    }
+    .corridor-pill .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--brand);
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    /* CRISP WHITE LIGHT MAP ZONE - NO DARK GREEN! */
+    .p8-map-zone {
+      flex: 1;
+      background: #fbfdf9;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      padding: 3mm 10mm 4mm;
+      border-top: 3px solid var(--brand);
+    }
+    .p8-map-svg {
+      width: 100%;
+      height: 140mm;
+      display: block;
+    }
+
+    /* Bottom Trade Highlights - WHITE LIGHT THEME WITH #99c229 BORDERS & HEADERS */
+    .p8-trade-highlights {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 5mm;
+      margin-top: 2mm;
+      padding-top: 3mm;
+      border-top: 1.5px solid var(--line);
+    }
+    .p8-trade-card {
+      background: #ffffff;
+      border: 1.5px solid var(--brand);
+      border-radius: 6px;
+      padding: 3.5mm 4.5mm;
+      color: var(--ink);
+      box-shadow: 0 2px 6px rgba(153, 194, 41, 0.1);
+    }
+    .p8-trade-card h4 {
+      font-size: 9.2pt;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 1.5mm;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .p8-trade-card p {
+      font-size: 7.8pt;
+      line-height: 1.5;
+      color: var(--ink-muted);
+    }
+
+    /* ================================================================
+       PAGE 9: PRODUCT CERTIFICATION & CONTACT INFORMATION (WHITE LIGHT)
+       ================================================================ */
+    .p9-contact {
+      padding: 13mm 16mm 0;
+      background: #ffffff;
+    }
+
+    .title-cert {
+      margin-bottom: 2mm;
+    }
+    .title-cert span {
+      font-size: 14pt;
+      color: var(--ink-muted);
+      display: block;
+      font-weight: 600;
+    }
+    .title-cert h2 {
+      font-size: 32pt;
+      font-weight: 900;
+      color: var(--brand);
+      line-height: 1;
+    }
+    .p9-cert-subtitle {
+      font-size: 9.8pt;
+      color: var(--ink-muted);
+      margin-bottom: 5mm;
+      font-style: italic;
+    }
+
+    .p9-certs-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 4mm;
+      margin-bottom: 6mm;
+      padding: 4mm 5mm;
+      background: var(--brand-card);
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+    }
+    .p9-cert-card {
+      background: #ffffff;
+      border: 1.2px solid var(--line);
+      border-radius: 6px;
+      padding: 3mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 27mm;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .p9-cert-img {
+      max-height: 16.5mm;
+      max-width: 90%;
+      object-fit: contain;
+    }
+    .p9-cert-name {
+      font-size: 6.8pt;
+      font-weight: 900;
+      color: var(--brand);
+      margin-top: 1.5mm;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .p9-contact-card {
+      background: var(--brand-card);
+      border: 1.5px solid var(--line);
+      border-top: 4px solid var(--brand);
+      border-radius: 8px;
+      padding: 8mm 9mm;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9mm;
+      margin-bottom: 6mm;
+      box-shadow: 0 3px 10px rgba(153, 194, 41, 0.08);
+    }
+    .p9-contact-col h4 {
+      font-size: 10.5pt;
+      font-weight: 900;
+      color: var(--brand);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 2.5mm;
+      border-bottom: 1.5px solid var(--brand);
+      padding-bottom: 1.2mm;
+    }
+    .p9-contact-col p {
+      font-size: 9pt;
+      line-height: 1.62;
+      color: var(--ink);
+    }
+    .p9-contact-col strong {
+      color: var(--brand);
+    }
+
+    .p9-contact-detail-row {
+      margin-top: 3mm;
+      display: flex;
+      flex-direction: column;
+      gap: 1.6mm;
+      font-size: 9pt;
+    }
+    .p9-contact-detail-row a {
+      color: var(--brand);
+      text-decoration: none;
+      font-weight: 800;
+    }
+
+    .p9-bottom-block {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8mm;
+      align-items: center;
+      padding: 2mm 3mm 4mm;
+      margin-bottom: 2mm;
+    }
+    .p9-web-links h4 {
+      font-size: 10.5pt;
+      font-weight: 900;
+      color: var(--brand);
+      margin-bottom: 2mm;
+    }
+    /* BUTTON: #99c229 WITH WHITE TEXT */
+    .p9-btn-link {
+      display: inline-block;
+      background: var(--brand);
+      color: #ffffff !important;
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 9.5pt;
+      padding: 2.5mm 6mm;
+      border-radius: 20px;
+      margin-bottom: 2mm;
+      box-shadow: 0 2px 6px rgba(153, 194, 41, 0.35);
+      margin-right: 2mm;
+    }
+
+    .p9-thank-you {
+      font-size: 9pt;
+      color: var(--ink-muted);
+      line-height: 1.55;
+      text-align: right;
+    }
+    .p9-thank-you strong {
+      color: var(--brand);
+      font-size: 10.5pt;
+      display: block;
+      margin-bottom: 1.5mm;
+    }
+
   </style>
 </head>
 <body>
 
   <!-- ================================================================
-       PAGE 1: COVER PAGE
+       PAGE 1: COVER
        ================================================================ -->
-  <div class="page cover-page">
-    <div class="cover-top-ribbon">
-      <span>A MANUFACTURER & EXPORTER OF NUTRACEUTICAL PRODUCTS</span>
-      <span>ESTABLISHED IN SURAT, GUJARAT, INDIA</span>
+  <div class="page p1-cover">
+    <div class="p1-top-ribbon">
+      <span>A Manufacturer &amp; Exporter of Huge Range of Nutraceutical Products.</span>
     </div>
 
-    <div class="cover-hero-section">
-      <div class="cover-logo-wrapper">
-        <img class="cover-logo" src="${logoImg}" alt="Gomzi Life Science LLP" />
+    <div class="p1-header">
+      <img class="p1-logo" src="${logoImg}" alt="Gomzi Life Science LLP" />
+      <div class="p1-logo-tagline">INTELLIGENT NUTRITION &amp; CONTRACT MANUFACTURING</div>
+      
+      <div class="p1-lead-name">Leading name in contract</div>
+      <div class="p1-mfg-box">
+        <h1>MANUFACTURING</h1>
+        <span>facility and <strong>GLOBALLY EXPORT</strong></span>
       </div>
-      <span class="cover-tagline">Leading Name in Contract Manufacturing & Global Exports</span>
-      <h1 class="cover-title">NUTRITION.<br />WITHOUT <span>BORDERS.</span></h1>
-      <p class="cover-subtitle">
-        Your formula. Your identity. Your global ambition. Gomzi Life Science LLP is a premier nutraceutical manufacturing and private labelling partner delivering international-grade products to discerning brand owners across worldwide markets.
-      </p>
 
-      <div class="cover-stats-row">
-        <div class="cover-stat-box">
-          <div class="cover-stat-val">9+ FORMATS</div>
-          <div class="cover-stat-lbl">Powders, Tablets, Sachets & More</div>
+      <div class="p1-stats-row">
+        <div class="p1-stat-item">
+          <div class="p1-stat-val">45+</div>
+          <div class="p1-stat-lbl">COUNTRIES</div>
         </div>
-        <div class="cover-stat-box">
-          <div class="cover-stat-val">6+ CORRIDORS</div>
-          <div class="cover-stat-lbl">Active Global Export Corridors</div>
-        </div>
-        <div class="cover-stat-box">
-          <div class="cover-stat-val">100% BESPOKE</div>
-          <div class="cover-stat-lbl">Turnkey Private Labelling</div>
+        <div class="p1-stat-divider"></div>
+        <div class="p1-stat-item">
+          <div class="p1-stat-val" style="white-space: nowrap;">1,000+</div>
+          <div class="p1-stat-lbl">PRODUCTS</div>
         </div>
       </div>
     </div>
 
-    <div class="cover-visual">
-      <img src="${heroImg}" alt="Gomzi Life Science Nutraceutical Packaging Concept" />
-      <div class="cover-visual-badge">GOMZI LIFE SCIENCE · PRIVATE LABEL EXCELLENCE</div>
+    <div class="p1-hero-container">
+      <div class="p1-hero-frame">
+        <div class="p1-hero-inner">
+          <img class="p1-hero-img" src="${heroImg}" alt="Gomzi Facility &amp; Products" />
+          <div class="p1-hero-overlay-tag">
+            <span>●</span>
+            <span>Surat · Gujarat · India</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="cover-bottom-bar">
-      <div class="cover-accredit">
-        AN-ISO 22000:2018 · WHO-GMP · FDA · HACCP · HALAL · FSSAI · KOSHER <strong>CERTIFIED REFERENCE STANDARDS</strong>
-      </div>
-      <div class="cover-location">
-        Surat, Gujarat, India
-      </div>
+    <div class="p1-bottom-ribbon">
+      <h3>AN-ISO 22000:2018</h3>
+      <p>WHO/GMP, FDA, HACCP, HALAL, FSSAI CERTIFIED COMPANY</p>
     </div>
   </div>
 
   <!-- ================================================================
-       PAGE 2: ABOUT US & CORPORATE OVERVIEW
+       PAGE 2: ABOUT US
        ================================================================ -->
-  <div class="page">
-    <div class="page-header">
-      <div class="page-header__left">
-        <span class="page-header__dot"></span>
-        <span>01 / Corporate Overview · Know About Us</span>
-      </div>
-      <img class="page-header__logo" src="${logoImg}" alt="Gomzi" />
+  <div class="page p2-about">
+    <svg class="botanical-accent" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M90 10C70 15 50 35 45 60C65 55 85 35 90 10Z" fill="#99c229" opacity="0.85"/>
+      <circle cx="35" cy="40" r="6" fill="#99c229" opacity="0.9"/>
+      <circle cx="25" cy="52" r="5" fill="#88ad24" opacity="0.9"/>
+      <circle cx="42" cy="56" r="4.5" fill="#cce68c" opacity="0.85"/>
+      <path d="M90 10Q55 45 30 75" stroke="#99c229" stroke-width="1.8"/>
+    </svg>
+
+    <div class="title-know-about">
+      <span class="script-top">Know,</span>
+      <h2>About Us</h2>
     </div>
 
-    <div class="page-content">
-      <div class="eyebrow">A Considered Partnership</div>
-      <h2>A Thoughtful Partner. At Every Step.</h2>
+    <div class="p2-intro-text">
+      <p><strong>Gomzi Life Science LLP</strong> is an ISO 22000:2018 &amp; WHO-GMP, FDA, HACCP, HALAL, FSSAI Certified company with the vision to provide the best possible range of international quality products at competitive prices through integration, research and innovation.</p>
+      <p>Gomzi Life Science LLP is located in Surat in India, engaged in supplying Nutraceutical finished products in accordance to customized requirement of clients in India as well as exporting to 45+ countries of the world. Gomzi Life Science LLP is an export oriented nutraceutical company serving vast range of Powder, Tablet, Capsule, Syrup, Softgel and Effervescent in Nutraceuticals or Dietary supplements. In each category, we continuously enhance the performance and quality of life for our customers.</p>
+    </div>
 
-      <div class="about-top-grid">
-        <div>
-          <p class="lead">
-            Great nutrition begins with a clear purpose. Great brands begin with the right manufacturing partner.
-          </p>
-          <p style="margin-bottom: 2.5mm;">
-            Based in the industrial manufacturing hub of Surat, India, <strong>Gomzi Life Science LLP</strong> brings together advanced nutraceutical manufacturing, cutting-edge formulation development, and bespoke private labelling to help entrepreneurs, established enterprises, and global distributors build market-leading nutrition brands.
-          </p>
-          <p>
-            From everyday sports performance and preventative wellness to specialized clinical dietary supplements, we place your vision at the center. Every formulation parameter, ingredient grade, batch size, and packaging configuration is calibrated around one uncompromising goal: producing finished products that feel unmistakably yours and command trust in international markets.
-          </p>
+    <div class="p2-pillars-card">
+      <div class="p2-pillars-grid">
+        <div class="p2-pillar-col">
+          <h3>MISSION</h3>
+          <p>To be a world class organization committed to excellence and delivering products and services of unmatched quality and integrity. To offer innovative and high quality of nutritional and pharmaceutical product by continuous refinement in all stages of product development at affordable price that gain trust of clients and customers.</p>
         </div>
-        <div class="about-visual-box">
-          <img src="${resLabImg}" alt="Gomzi Research Laboratory" />
-          <div class="about-caption-box">
-            <span>Good Science. <strong>Even Better Partnerships.</strong></span>
-            <span style="font-size: 7pt; color: #a4bfa0;">SURAT LAB</span>
-          </div>
+        <div class="p2-pillar-col">
+          <h3>VISION</h3>
+          <p>Vision of our company is “To become globally admired Nutraceutical organization by providing affordable, competence, quality products for larger global population. We want to mark our presence in the world by creating a portfolio of efficacious products”.</p>
         </div>
-      </div>
-
-      <div class="eyebrow" style="margin-top: 2mm;">Guiding Principles</div>
-      <div class="pillars-grid">
-        <div class="pillar-card">
-          <div class="pillar-num">01 / MISSION</div>
-          <div class="pillar-title">Excellence in every single detail.</div>
-          <div class="pillar-desc">
-            To deliver nutritional products and contract services with uncompromising quality, rigorous compliance, and transparent integrity. We believe in continuous refinement from raw assay to finished formulation.
-          </div>
-        </div>
-        <div class="pillar-card">
-          <div class="pillar-num">02 / VISION</div>
-          <div class="pillar-title">A healthier world, built together.</div>
-          <div class="pillar-desc">
-            To become a globally admired nutraceutical partner, bringing efficacious, premium, and affordable nutrition formulations to a wider global population through enduring commercial relationships.
-          </div>
-        </div>
-        <div class="pillar-card">
-          <div class="pillar-num">03 / VALUE</div>
-          <div class="pillar-title">Your trust. Our responsibility.</div>
-          <div class="pillar-desc">
-            To place client collaboration at the very heart of contract manufacturing. We listen attentively to your market requirements, act with ethical clarity, and protect your brand equity with consistent quality.
-          </div>
-        </div>
-      </div>
-
-      <div class="key-facts-strip">
-        <div class="key-fact-item">
-          <strong>Surat, India</strong>
-          <span>Strategic Hub</span>
-        </div>
-        <div class="key-fact-item">
-          <strong>100%</strong>
-          <span>Contract Based</span>
-        </div>
-        <div class="key-fact-item">
-          <strong>Custom</strong>
-          <span>Formulations</span>
-        </div>
-        <div class="key-fact-item">
-          <strong>End-to-End</strong>
-          <span>Turnkey Execution</span>
+        <div class="p2-pillar-col">
+          <h3>VALUE</h3>
+          <p>The company is driven by its vision to play an important role in the Third Party and Contract Manufacturing Services in global market and lead the way to happiness through world-class products and services without direct marketing of products, we serve our contract manufacturing facilities to client's requirements.</p>
         </div>
       </div>
     </div>
 
-    <div class="page-footer">
-      <span>Gomzi Life Science LLP · Corporate Profile</span>
-      <span>info@gomzilifesciences.in</span>
-      <span class="page-footer__num">02</span>
+    <div class="p2-badges-row">
+      <div class="p2-badge-wrap">
+        <h4>MISSION</h4>
+        <div class="p2-badge-circle">
+          <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+        </div>
+        <div class="p2-badge-sub">Excellence &amp; Integrity</div>
+      </div>
+      <div class="p2-badge-wrap">
+        <h4>VISION</h4>
+        <div class="p2-badge-circle">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>
+        </div>
+        <div class="p2-badge-sub">Global Admiration</div>
+      </div>
+      <div class="p2-badge-wrap">
+        <h4>VALUE</h4>
+        <div class="p2-badge-circle">
+          <svg viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path></svg>
+        </div>
+        <div class="p2-badge-sub">Dedicated Partnership</div>
+      </div>
+    </div>
+
+    <div class="p2-infra-strip">
+      <div class="p2-infra-col">
+        <h5>🏭 Cleanroom Infrastructure</h5>
+        <p>Built strictly to ISO Class 8 standards with terminal HEPA filtration, differential airlocks and zoned positive pressure.</p>
+      </div>
+      <div class="p2-infra-col">
+        <h5>🔬 In-House Testing Lab</h5>
+        <p>Complete instrumentation for raw material assays, HPLC purity profiling, dissolution testing, and micro analysis.</p>
+      </div>
+      <div class="p2-infra-col">
+        <h5>🌐 Regulatory Readiness</h5>
+        <p>WHO-GMP, FDA, Halal, FSSAI approved with complete registration dossiers (CTD/ACTD) and export certificates.</p>
+      </div>
+    </div>
+
+    <div class="std-footer">
+      <span class="page-badge-num">02</span>
+      <img class="footer-logo" src="${logoImg}" alt="Gomzi" />
     </div>
   </div>
 
   <!-- ================================================================
-       PAGE 3: 100% PRIVATE LABELLING & CONTRACT MANUFACTURING
+       PAGE 3: 100% THIRD PARTY MANUFACTURING
        ================================================================ -->
-  <div class="page">
-    <div class="page-header">
-      <div class="page-header__left">
-        <span class="page-header__dot"></span>
-        <span>02 / Bespoke Manufacturing · Private Labelling</span>
-      </div>
-      <img class="page-header__logo" src="${logoImg}" alt="Gomzi" />
+  <div class="page p3-manufacturing">
+    <div class="title-3rd-party">
+      <span class="script-top">We Do 100%</span>
+      <h2>Third Party Manufacturing</h2>
     </div>
 
-    <div class="page-content">
-      <div class="eyebrow">Turnkey Brand Enablement</div>
-      <h2>From Concept to Your Finished Label.</h2>
-      <p class="lead">
-        We specialize in 100% third-party and contract manufacturing, empowering clients to market proprietary formulations without managing complex factory infrastructure.
-      </p>
+    <div class="p3-subhead">CUSTOMIZED BRANDING / PRIVATE LABELLING</div>
 
-      <div class="workflow-timeline">
-        <div class="workflow-step">
-          <span class="workflow-step-badge">1</span>
-          <h4>Formulation R&D</h4>
-          <p>Active ingredient ratio balancing, flavour profiling, solubility optimization, and custom nutritional profile development tailored to your target consumer demographic.</p>
-        </div>
-        <div class="workflow-step">
-          <span class="workflow-step-badge">2</span>
-          <h4>Quality Sourcing</h4>
-          <p>Certified raw material procurement with strict Certificate of Analysis (CoA) validation, active assay verification, and heavy metal screening for total peace of mind.</p>
-        </div>
-        <div class="workflow-step">
-          <span class="workflow-step-badge">3</span>
-          <h4>Packaging Architecture</h4>
-          <p>Container selection (HDPE jars, blister packs, composite sachets, amber droppers), graphic label compliance, tamper-evident seals, and protective export barrier design.</p>
-        </div>
-        <div class="workflow-step">
-          <span class="workflow-step-badge">4</span>
-          <h4>Pilot Batch Testing</h4>
-          <p>Pilot blend trials, organoleptic assessments, dissolution/disintegration testing, and real-time stability verification before full commercial run sign-off.</p>
-        </div>
-        <div class="workflow-step">
-          <span class="workflow-step-badge">5</span>
-          <h4>Cleanroom Production</h4>
-          <p>High-speed automated blending, tableting, encapsulation, and filling in controlled cleanrooms adhering to stringent international hygiene protocols.</p>
-        </div>
-        <div class="workflow-step">
-          <span class="workflow-step-badge">6</span>
-          <h4>Global Export Logistics</h4>
-          <p>Batch test certification, export documentation (Free Sale, Certificate of Origin, Legalization), palletization, and dispatch to maritime ports and air hubs.</p>
-        </div>
+    <div class="p3-desc">
+      <p>Gomzi Life Science LLP is known for its ability to provide customized compositions and specifications in terms of product ingredients as well as brand name or labelling in accordance to client's requirement.</p>
+      <p>Customers who are new in market or want to develop their own brand name, label, design, composition, we assist in building and setting the entire product without any botheration to the client as per their requirement. We also offer the service to those customer who want to full scale product manufacturing under their requirements in partnership. We have a facility to fulfil the graphics, design, label printing for customer's private product via third party manufacturing.</p>
+      <p>We strive to ship every order as quickly as possible in line with our excellent Quality and International Good Manufacturing Practices.</p>
+    </div>
+
+    <div class="p3-product-showcase">
+      <img class="p3-product-img" src="${lineupImg}" alt="Nutraceutical Product Showcase" />
+    </div>
+
+    <div class="p3-callout-grid">
+      <div class="p3-callout-item">
+        <h4>✔ Turnkey Formulation</h4>
+        <p>Custom active ingredients, taste profiling, solubility optimization, and stability profiling tailored precisely to your brand.</p>
       </div>
-
-      <div class="pl-banner">
-        <div>
-          <h3>Your Brand Equity, Defended by Process Excellence</h3>
-          <p>
-            Whether you are an established international sports brand seeking diversified supply lines or a modern direct-to-consumer founder entering the wellness sphere, our contract infrastructure provides low capital friction, flexible batch planning, and guaranteed formula confidentiality.
-          </p>
-        </div>
-        <ul class="pl-banner-checklist">
-          <li>Custom Flavours & Natural Sweeteners</li>
-          <li>Strict Non-Disclosure & Recipe Security</li>
-          <li>Full In-House Graphic & Label Support</li>
-          <li>Competitive Best-in-Class Unit Economics</li>
-        </ul>
+      <div class="p3-callout-item">
+        <h4>✔ Private Label Packaging</h4>
+        <p>End-to-end graphic packaging design, regulatory text compliance, tamper-evident induction seals, and export-grade cartons.</p>
       </div>
-
-      <div style="margin-top: 4mm; display: grid; grid-template-columns: 1fr 1fr; gap: 4mm;">
-        <div class="card" style="border-left: 3px solid var(--lime);">
-          <strong style="color: var(--green); font-size: 8.5pt;">Flexible Minimum Order Quantities</strong>
-          <p style="font-size: 7.5pt; margin-top: 1mm;">Structured order volumes enable emerging brands to test market traction while offering scaled capacity for high-volume multinational container shipments.</p>
-        </div>
-        <div class="card" style="border-left: 3px solid var(--lime);">
-          <strong style="color: var(--green); font-size: 8.5pt;">Regulatory Dossier Support</strong>
-          <p style="font-size: 7.5pt; margin-top: 1mm;">Full documentary backing including ingredient breakdown, nutritional statements, allergen declarations, and stability reports for rapid import customs clearance.</p>
-        </div>
+      <div class="p3-callout-item">
+        <h4>✔ Quality Assured Manufacturing</h4>
+        <p>Every single batch produced under WHO-GMP, ISO 22000, and FDA controls, backed by Certificate of Analysis (COA).</p>
+      </div>
+      <div class="p3-callout-item">
+        <h4>✔ High Capacity &amp; Fast Dispatch</h4>
+        <p>High-speed automated packaging lines ensure large-scale volume capabilities, short lead times, and on-time global export delivery.</p>
       </div>
     </div>
 
-    <div class="page-footer">
-      <span>Gomzi Life Science LLP · Corporate Profile</span>
-      <span>Turnkey Contract Manufacturing</span>
-      <span class="page-footer__num">03</span>
+    <div class="p3-timeline-bar">
+      <div class="p3-step-card">
+        <span class="p3-step-num">STEP 1</span>
+        <div class="p3-step-title">Formulation &amp; Pilot Samples</div>
+      </div>
+      <div class="p3-step-card">
+        <span class="p3-step-num">STEP 2</span>
+        <div class="p3-step-title">Packaging &amp; Label Design</div>
+      </div>
+      <div class="p3-step-card">
+        <span class="p3-step-num">STEP 3</span>
+        <div class="p3-step-title">cGMP High-Speed Production</div>
+      </div>
+      <div class="p3-step-card">
+        <span class="p3-step-num">STEP 4</span>
+        <div class="p3-step-title">QA Release &amp; Global Shipping</div>
+      </div>
+    </div>
+
+    <div class="std-footer">
+      <img class="footer-logo" src="${logoImg}" alt="Gomzi" />
+      <span class="page-badge-num">03</span>
     </div>
   </div>
 
   <!-- ================================================================
-       PAGE 4: CAPACITIES & DOSAGE FORMATS (PART 1)
+       PAGE 4: CAPACITIES AND FACILITIES (PROMINENT LARGE PRODUCT IMAGES)
        ================================================================ -->
-  <div class="page">
-    <div class="page-header">
-      <div class="page-header__left">
-        <span class="page-header__dot"></span>
-        <span>03 / Capacities & Facilities · Supported Formats (Part 1)</span>
-      </div>
-      <img class="page-header__logo" src="${logoImg}" alt="Gomzi" />
+  <div class="page p4-facilities">
+    <div class="title-capacities">
+      <span>Capacities and</span>
+      <h2>FACILITIES</h2>
     </div>
 
-    <div class="page-content">
-      <div class="eyebrow">Comprehensive Dosage Capabilities</div>
-      <h2>Supported Formats: Solid & Powder Systems</h2>
-      <p class="lead">
-        We engineer formulations across nine specialized delivery systems, ensuring optimal bioavailability, shelf stability, and superior consumer taste profiles.
-      </p>
-
-      <div class="formats-grid-cards">
-        <!-- 01 Powders -->
-        <div class="format-entry">
-          <img class="format-entry__img" src="${fmtPowders}" alt="Powders" />
-          <div class="format-entry__body">
-            <div>
-              <div class="format-entry__header">
-                <h4>Powders & Blends</h4>
-                <span class="format-entry__num">01</span>
-              </div>
-              <div class="format-entry__subtitle">Everyday & Performance Nutrition</div>
-              <p class="format-entry__desc">High-uniformity blending for whey/plant protein, electrolytes, hydration salts, superfoods, and dietary fibers with instantized dispersion.</p>
-            </div>
-            <div class="format-entry__tags">
-              <span class="format-tag">Whey Protein</span>
-              <span class="format-tag">Electrolytes</span>
-              <span class="format-tag">Pre-Workouts</span>
-              <span class="format-tag">Collagen</span>
-            </div>
-          </div>
+    <div class="p4-chevrons-list">
+      <!-- 01 Powder -->
+      <div class="p4-chev-card left-aligned">
+        <div class="p4-chev-num">01</div>
+        <div class="p4-chev-body">
+          <div class="p4-chev-title">POWDER</div>
+          <div class="p4-chev-cap">20,000 Packs of Powder Per Day</div>
         </div>
-
-        <!-- 02 Tablets -->
-        <div class="format-entry">
-          <img class="format-entry__img" src="${fmtTablets}" alt="Tablets" />
-          <div class="format-entry__body">
-            <div>
-              <div class="format-entry__header">
-                <h4>Tablets</h4>
-                <span class="format-entry__num">02</span>
-              </div>
-              <div class="format-entry__subtitle">Convenient Daily Formulations</div>
-              <p class="format-entry__desc">High-precision rotary tablet compression with options for film-coating, enteric coating, chewable textures, and sustained-release matrices.</p>
-            </div>
-            <div class="format-entry__tags">
-              <span class="format-tag">Multivitamins</span>
-              <span class="format-tag">Minerals</span>
-              <span class="format-tag">Botanicals</span>
-              <span class="format-tag">Coated</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 03 Capsules -->
-        <div class="format-entry">
-          <img class="format-entry__img" src="${fmtCapsules}" alt="Capsules" />
-          <div class="format-entry__body">
-            <div>
-              <div class="format-entry__header">
-                <h4>Hard & Soft Capsules</h4>
-                <span class="format-entry__num">03</span>
-              </div>
-              <div class="format-entry__subtitle">Simple. Precise. Adaptable.</div>
-              <p class="format-entry__desc">Automated capsule filling supporting vegetarian HPMC or gelatin shells in sizes #00, #0, #1, and #2, as well as oil-filled softgel options.</p>
-            </div>
-            <div class="format-entry__tags">
-              <span class="format-tag">HPMC Veg</span>
-              <span class="format-tag">Gelatin</span>
-              <span class="format-tag">Herbal Extracts</span>
-              <span class="format-tag">Fish Oils</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 05 Sachets -->
-        <div class="format-entry">
-          <img class="format-entry__img" src="${fmtSachets}" alt="Sachets" />
-          <div class="format-entry__body">
-            <div>
-              <div class="format-entry__header">
-                <h4>Single-Serve Sachets</h4>
-                <span class="format-entry__num">04</span>
-              </div>
-              <div class="format-entry__subtitle">Thoughtfully Portioned Nutrition</div>
-              <p class="format-entry__desc">Multi-layer barrier foil packaging ensuring total moisture/oxygen protection for sensitive pre/probiotics, hydration powders, and single-serve drinks.</p>
-            </div>
-            <div class="format-entry__tags">
-              <span class="format-tag">Stick Packs</span>
-              <span class="format-tag">Probiotics</span>
-              <span class="format-tag">Hydration</span>
-              <span class="format-tag">Sample Packs</span>
-            </div>
-          </div>
+        <div class="p4-chev-arrows">&gt;&gt;&gt;</div>
+        <div class="p4-chev-icon-badge">
+          <img class="p4-chev-icon-img" src="${fmtPowders}" alt="Powder Product" />
         </div>
       </div>
 
-      <div class="card" style="margin-top: 4mm; background: var(--sage); border-left: 3px solid var(--green);">
-        <strong style="color: var(--green); font-size: 8.5pt;">Precision Quality Control on Solid Formats</strong>
-        <p style="font-size: 7.5pt; margin-top: 1mm;">
-          Every batch of tablets and capsules undergoes stringent hardness, friability, disintegration time, and active assay testing to ensure full pharmaceutical uniformity across millions of units.
-        </p>
+      <!-- 02 Tablet -->
+      <div class="p4-chev-card right-aligned">
+        <div class="p4-chev-num">02</div>
+        <div class="p4-chev-body">
+          <div class="p4-chev-title">TABLET</div>
+          <div class="p4-chev-cap">10,00,000 Tablet Mfg. Capacity Per Day</div>
+        </div>
+        <div class="p4-chev-arrows">&lt;&lt;&lt;</div>
+        <div class="p4-chev-icon-badge">
+          <img class="p4-chev-icon-img" src="${fmtTablets}" alt="Tablet Product" />
+        </div>
+      </div>
+
+      <!-- 03 Capsule -->
+      <div class="p4-chev-card left-aligned">
+        <div class="p4-chev-num">03</div>
+        <div class="p4-chev-body">
+          <div class="p4-chev-title">CAPSULE</div>
+          <div class="p4-chev-cap">5,00,000 Capsule Mfg. Capacity Per Day</div>
+        </div>
+        <div class="p4-chev-arrows">&gt;&gt;&gt;</div>
+        <div class="p4-chev-icon-badge">
+          <img class="p4-chev-icon-img" src="${fmtCapsules}" alt="Capsule Product" />
+        </div>
+      </div>
+
+      <!-- 04 Syrup -->
+      <div class="p4-chev-card right-aligned">
+        <div class="p4-chev-num">04</div>
+        <div class="p4-chev-body">
+          <div class="p4-chev-title">SYRUP</div>
+          <div class="p4-chev-cap">30,000 Bottle Liquid Mfg. Capacity Per Day</div>
+        </div>
+        <div class="p4-chev-arrows">&lt;&lt;&lt;</div>
+        <div class="p4-chev-icon-badge">
+          <img class="p4-chev-icon-img" src="${fmtSyrups}" alt="Syrup Product" />
+        </div>
+      </div>
+
+      <!-- 05 Sachet -->
+      <div class="p4-chev-card left-aligned">
+        <div class="p4-chev-num">05</div>
+        <div class="p4-chev-body">
+          <div class="p4-chev-title">SACHET</div>
+          <div class="p4-chev-cap">50,00,00 Sachet Mfg. Capacity Per Day</div>
+        </div>
+        <div class="p4-chev-arrows">&gt;&gt;&gt;</div>
+        <div class="p4-chev-icon-badge">
+          <img class="p4-chev-icon-img" src="${fmtSachets}" alt="Sachet Product" />
+        </div>
+      </div>
+
+      <!-- 06 Effervescent -->
+      <div class="p4-chev-card right-aligned">
+        <div class="p4-chev-num">06</div>
+        <div class="p4-chev-body">
+          <div class="p4-chev-title">EFFERVESCENT TABLET</div>
+          <div class="p4-chev-cap">10,00,00 Tube Mfg. Capacity Per Day</div>
+        </div>
+        <div class="p4-chev-arrows">&lt;&lt;&lt;</div>
+        <div class="p4-chev-icon-badge">
+          <img class="p4-chev-icon-img" src="${fmtEffervescent}" alt="Effervescent Product" />
+        </div>
       </div>
     </div>
 
-    <div class="page-footer">
-      <span>Gomzi Life Science LLP · Corporate Profile</span>
-      <span>Dosage Formats: Solid Systems</span>
-      <span class="page-footer__num">04</span>
+    <!-- BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT -->
+    <div class="p4-private-ribbon">PRIVATE LABEL CONTRACT MANUFACTURING</div>
+
+    <div class="p4-pillars-grid">
+      <div class="p4-pill-item">
+        <h4>1. PRODUCT DEVELOPMENT</h4>
+        <p>The specialist for premium quality, superior bioavailability, and current nutritional food trends.</p>
+      </div>
+      <div class="p4-pill-item">
+        <h4>4. CONSULTANCY</h4>
+        <p>Decades of expert formulation experience in nutraceutical, sports nutrition, and dietary food production.</p>
+      </div>
+      <div class="p4-pill-item">
+        <h4>2. PACKAGING</h4>
+        <p>A perfect marriage of barrier protection, international compliance, and attractive aesthetic design.</p>
+      </div>
+      <div class="p4-pill-item">
+        <h4>5. MARKET ANALYTICS</h4>
+        <p>Knowing today what the market trend, active ingredients, and consumer preferences will be tomorrow.</p>
+      </div>
+      <div class="p4-pill-item">
+        <h4>3. QUALITY MANAGEMENT</h4>
+        <p>Zero compromises on raw material purity, potency, microbiological safety, and active ingredient assays.</p>
+      </div>
+      <div class="p4-pill-item">
+        <h4>6. SUSTAINABILITY</h4>
+        <p>Responsible manufacturing practices for people, healthcare safety, and eco-friendly packaging materials.</p>
+      </div>
+    </div>
+
+    <div class="std-footer">
+      <span class="page-badge-num">04</span>
+      <img class="footer-logo" src="${logoImg}" alt="Gomzi" />
     </div>
   </div>
 
   <!-- ================================================================
-       PAGE 5: CAPACITIES & DOSAGE FORMATS (PART 2)
+       PAGE 5: COMPANY PHOTO GALLERY (WHITE LIGHT THEME)
        ================================================================ -->
-  <div class="page">
-    <div class="page-header">
-      <div class="page-header__left">
-        <span class="page-header__dot"></span>
-        <span>03 / Capacities & Facilities · Supported Formats (Part 2)</span>
-      </div>
-      <img class="page-header__logo" src="${logoImg}" alt="Gomzi" />
+  <div class="page p5-gallery">
+    <svg class="botanical-accent" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M85 15C65 20 45 40 40 65C60 60 80 40 85 15Z" fill="#99c229" opacity="0.85"/>
+      <path d="M85 15C60 30 50 55 45 85C70 75 80 45 85 15Z" fill="#88ad24" opacity="0.85"/>
+    </svg>
+
+    <div class="title-gallery">
+      <h2>Company</h2>
+      <span>Photo gallery</span>
     </div>
 
-    <div class="page-content">
-      <div class="eyebrow">Liquid, Chewable & Effervescent Delivery</div>
-      <h2>Supported Formats: Specialty Systems</h2>
-      <p class="lead">
-        Modern consumers demand engaging nutritional rituals. Our liquid and effervescent processing capabilities provide refreshing, highly absorbable alternatives.
-      </p>
-
-      <div class="formats-grid-cards">
-        <!-- 04 Syrups -->
-        <div class="format-entry">
-          <img class="format-entry__img" src="${fmtSyrups}" alt="Syrups" />
-          <div class="format-entry__body">
-            <div>
-              <div class="format-entry__header">
-                <h4>Syrups & Suspensions</h4>
-                <span class="format-entry__num">05</span>
-              </div>
-              <div class="format-entry__subtitle">Nutrition in Liquid Format</div>
-              <p class="format-entry__desc">Homogenized liquid blending with premium flavour balancing for multivitamin tonics, iron syrups, herbal elixirs, and pediatric nutrition.</p>
-            </div>
-            <div class="format-entry__tags">
-              <span class="format-tag">Multivitamins</span>
-              <span class="format-tag">Iron Tonics</span>
-              <span class="format-tag">Enzyme Syrups</span>
-              <span class="format-tag">Sugar-Free</span>
-            </div>
-          </div>
+    <div class="p5-gallery-grid">
+      ${galleryImgs.map(img => `
+        <div class="p5-photo-card">
+          <img class="p5-photo-img" src="${img.uri}" alt="Gomzi Facility Photo ${img.id}" />
         </div>
-
-        <!-- 06 Effervescents -->
-        <div class="format-entry">
-          <img class="format-entry__img" src="${fmtEffervescent}" alt="Effervescents" />
-          <div class="format-entry__body">
-            <div>
-              <div class="format-entry__header">
-                <h4>Effervescent Tablets</h4>
-                <span class="format-entry__num">06</span>
-              </div>
-              <div class="format-entry__subtitle">Refreshing Dissolving Wellness</div>
-              <p class="format-entry__desc">Dehumidified cleanroom compression preventing premature moisture reaction. Packaged in moisture-sealed tubes with desiccant caps.</p>
-            </div>
-            <div class="format-entry__tags">
-              <span class="format-tag">Vitamin C + Zn</span>
-              <span class="format-tag">Glutathione</span>
-              <span class="format-tag">Electrolytes</span>
-              <span class="format-tag">Tube Pack</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 07 Gummies -->
-        <div class="format-entry">
-          <img class="format-entry__img" src="${fmtGummies}" alt="Gummies" />
-          <div class="format-entry__body">
-            <div>
-              <div class="format-entry__header">
-                <h4>Functional Gummies</h4>
-                <span class="format-entry__num">07</span>
-              </div>
-              <div class="format-entry__subtitle">An Enjoyable Daily Wellness Ritual</div>
-              <p class="format-entry__desc">Pectin-based vegan and gelatin gummy manufacturing with custom moulds, natural fruit juices, and heat-resistant packaging.</p>
-            </div>
-            <div class="format-entry__tags">
-              <span class="format-tag">Pectin Vegan</span>
-              <span class="format-tag">Biotin</span>
-              <span class="format-tag">Melatonin</span>
-              <span class="format-tag">Apple Cider</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 09 Drops -->
-        <div class="format-entry">
-          <img class="format-entry__img" src="${fmtDrops}" alt="Drops" />
-          <div class="format-entry__body">
-            <div>
-              <div class="format-entry__header">
-                <h4>Precision Liquid Drops</h4>
-                <span class="format-entry__num">08</span>
-              </div>
-              <div class="format-entry__subtitle">Small Format. High Potency.</div>
-              <p class="format-entry__desc">Micro-dosed liquid actives in amber glass dropper bottles, ideal for fat-soluble vitamins (D3/K2), botanical extracts, and sublingual solutions.</p>
-            </div>
-            <div class="format-entry__tags">
-              <span class="format-tag">Vitamin D3</span>
-              <span class="format-tag">Herbal Tinctures</span>
-              <span class="format-tag">Sublingual</span>
-              <span class="format-tag">Glass Dropper</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="eyebrow" style="margin-top: 4mm;">Value-Added Manufacturing Services</div>
-      <div class="caps-pillars">
-        <div class="caps-pill">
-          <strong>1. Formulation R&D</strong>
-          <span>Micro-nutrient stability, bioavailability, and customized recipe design.</span>
-        </div>
-        <div class="caps-pill">
-          <strong>2. Packaging Design</strong>
-          <span>Bottles, blisters, tubs, cartons, and moisture-barrier materials.</span>
-        </div>
-        <div class="caps-pill">
-          <strong>3. Quality Assurance</strong>
-          <span>Comprehensive assay testing, microbial clearance, and CoA generation.</span>
-        </div>
-        <div class="caps-pill">
-          <strong>4. Regulatory Consultancy</strong>
-          <span>Export dossier support and labeling compliance for overseas jurisdictions.</span>
-        </div>
-        <div class="caps-pill">
-          <strong>5. Market Analytics</strong>
-          <span>Ingredient trend intelligence and high-growth formulation positioning.</span>
-        </div>
-        <div class="caps-pill">
-          <strong>6. Responsible Sourcing</strong>
-          <span>Clean-label ingredients, ethically sourced botanicals, and zero fillers.</span>
-        </div>
-      </div>
+      `).join('')}
     </div>
 
-    <div class="page-footer">
-      <span>Gomzi Life Science LLP · Corporate Profile</span>
-      <span>Dosage Formats: Specialty Systems</span>
-      <span class="page-footer__num">05</span>
+    <div class="std-footer">
+      <span class="page-badge-num">05</span>
+      <img class="footer-logo" src="${logoImg}" alt="Gomzi" />
     </div>
   </div>
 
   <!-- ================================================================
-       PAGE 6: PHOTO GALLERY (REAL FACILITY)
+       PAGE 6: QUALITY ASSURANCE & R&D & WHY GOMZI
        ================================================================ -->
-  <div class="page">
-    <div class="page-header">
-      <div class="page-header__left">
-        <span class="page-header__dot"></span>
-        <span>04 / Facility Gallery · Inside Our Operations</span>
-      </div>
-      <img class="page-header__logo" src="${logoImg}" alt="Gomzi" />
+  <div class="page p6-quality">
+    <div class="title-qa">
+      <span>Quality</span>
+      <h2>ASSURANCE</h2>
     </div>
 
-    <div class="page-content">
-      <div class="eyebrow">Authentic Manufacturing Infrastructure</div>
-      <h2>Behind the Label. Inside Our Facility.</h2>
-      <p class="lead">
-        A photographic look at the advanced equipment, cleanroom environments, analytical testing suites, and dedicated personnel powering your products.
-      </p>
-
-      <div class="gallery-grid-pdf">
-        <!-- 01 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[0].uri}" alt="Quality Assurance" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">01 / QUALITY CONTROL</span>
-            <h4 class="gallery-card-pdf__title">Quality Assurance Inspection</h4>
-            <p class="gallery-card-pdf__desc">Technician in cleanroom PPE conducting in-line equipment inspections and batch logging.</p>
-          </div>
-        </div>
-
-        <!-- 02 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[1].uri}" alt="Cleanroom Processing" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">02 / STERILE OPERATIONS</span>
-            <h4 class="gallery-card-pdf__title">Cleanroom Processing Facility</h4>
-            <p class="gallery-card-pdf__desc">Specialized operator monitoring stainless steel processing tanks and automated valves.</p>
-          </div>
-        </div>
-
-        <!-- 03 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[2].uri}" alt="Bottling Line" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">03 / PACKAGING LINE</span>
-            <h4 class="gallery-card-pdf__title">Automated Bottling Line</h4>
-            <p class="gallery-card-pdf__desc">High-speed automated conveyor conveying white HDPE bottles through clean bottling rails.</p>
-          </div>
-        </div>
-
-        <!-- 04 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[3].uri}" alt="Bulk Processing" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">04 / BULK PRODUCTION</span>
-            <h4 class="gallery-card-pdf__title">Bulk Processing Vessels</h4>
-            <p class="gallery-card-pdf__desc">Cleanroom operators inspecting industrial stainless formulation vessels and transfer lines.</p>
-          </div>
-        </div>
-
-        <!-- 05 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[4].uri}" alt="Precision Powder" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">05 / ANALYTICAL LAB</span>
-            <h4 class="gallery-card-pdf__title">Precision Powder Formulation</h4>
-            <p class="gallery-card-pdf__desc">R&D chemist weighing active nutritional powders on an analytical digital micro-balance.</p>
-          </div>
-        </div>
-
-        <!-- 06 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[5].uri}" alt="Liquid Blending" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">06 / FORMULATION</span>
-            <h4 class="gallery-card-pdf__title">Liquid Formulation Blending</h4>
-            <p class="gallery-card-pdf__desc">Operators introducing liquid actives into stainless mixing units for uniform dispersion.</p>
-          </div>
-        </div>
-
-        <!-- 07 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[6].uri}" alt="Bioreactor" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">07 / ADVANCED VESSELS</span>
-            <h4 class="gallery-card-pdf__title">Stainless Pressure Bioreactor</h4>
-            <p class="gallery-card-pdf__desc">Cleanroom technician recording digital tablet telemetry beside pressure reaction vessels.</p>
-          </div>
-        </div>
-
-        <!-- 08 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[7].uri}" alt="Analytical Lab" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">08 / R&D CORRIDOR</span>
-            <h4 class="gallery-card-pdf__title">Analytical Testing Laboratory</h4>
-            <p class="gallery-card-pdf__desc">Modern laboratory corridor equipped with spectrophotometers and analytical testing equipment.</p>
-          </div>
-        </div>
-
-        <!-- 09 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[8].uri}" alt="Capped Bottles" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">09 / FINISHING</span>
-            <h4 class="gallery-card-pdf__title">Capped Bottle Packaging Line</h4>
-            <p class="gallery-card-pdf__desc">Continuously running conveyor transporting capped dietary supplement bottles to induction sealers.</p>
-          </div>
-        </div>
-
-        <!-- 10 -->
-        <div class="gallery-card-pdf">
-          <img class="gallery-card-pdf__img" src="${galleryImgs[9].uri}" alt="Auger Filling" />
-          <div class="gallery-card-pdf__info">
-            <span class="gallery-card-pdf__num">10 / POWDER FILLING</span>
-            <h4 class="gallery-card-pdf__title">Auger Powder Filling</h4>
-            <p class="gallery-card-pdf__desc">Precision auger filling nozzle dispensing bulk protein powder into large format white tubs.</p>
-          </div>
-        </div>
+    <div class="p6-qa-split">
+      <div class="p6-qa-text">
+        <p>At Gomzi Life Science LLP we have a dedicated and committed quality assurance team which strives for continuous improvements in our quality and have been constantly working to enhance the existing quality of products, services by optimizing production processes, introducing new methods and process.</p>
+        <p>Our quality assurance team focuses on process of improvements. The goal of the team is to reduce variance in processes in order to predict the quality of an output. Our QA team has separate members for audit who focus on working with the each client to ensure that all the client needs are met and fulfilled. Additionally, the team also has a separate documentation system whose duty is to provide a library of all documents and also make sure that all the documents are correct and complete.</p>
+      </div>
+      <div class="p6-lab-thumb-wrap">
+        <img class="p6-lab-thumb-img" src="${resLabImg}" alt="Laboratory Analysis" />
       </div>
     </div>
 
-    <div class="page-footer">
-      <span>Gomzi Life Science LLP · Corporate Profile</span>
-      <span>Authentic Facility Photo Gallery</span>
-      <span class="page-footer__num">06</span>
+    <!-- BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT -->
+    <div class="p6-rnd-card">
+      <h3>Research and DEVELOPMENT</h3>
+      <p>Our core strength lies in our research and development oriented approach to introduce innovative products with the help of dedicated professionals engaged in discovering new ideas, formulations, design, quality assurance methods, and state-of-the-art stability chambers.</p>
+    </div>
+
+    <div class="p6-why-box">
+      <div class="p6-why-header">
+        <h3>WHY</h3>
+        <img src="${logoImg}" alt="Gomzi" />
+      </div>
+
+      <div class="p6-why-grid">
+        <div class="p6-why-item"><span class="p6-why-num">1</span> One Stop Solution For All Third Party Manufacturing Needs</div>
+        <div class="p6-why-item"><span class="p6-why-num">6</span> Packaging Designed as Per Latest Global &amp; FSSAI Guidelines</div>
+        <div class="p6-why-item"><span class="p6-why-num">2</span> In-House Formulation &amp; Graphic Design Facilities</div>
+        <div class="p6-why-item"><span class="p6-why-num">7</span> WHO/GMP, ISO 22000, US FDA &amp; FSSAI Approved Plant</div>
+        <div class="p6-why-item"><span class="p6-why-num">3</span> Time Bound Delivery Schedules &amp; Fast Dispatch Turnaround</div>
+        <div class="p6-why-item"><span class="p6-why-num">8</span> In-House Specialized R&amp;D Formulation Development Lab</div>
+        <div class="p6-why-item"><span class="p6-why-num">4</span> Strict Quality, Purity &amp; Highly Efficacious Formulations</div>
+        <div class="p6-why-item"><span class="p6-why-num">9</span> Advanced In-House Instrumental &amp; Analytical Testing Lab</div>
+        <div class="p6-why-item"><span class="p6-why-num">5</span> Dynamic Team Of Marketing &amp; Technical Professionals</div>
+        <div class="p6-why-item"><span class="p6-why-num">10</span> Modern Science Infrastructure &amp; High-Speed Automation</div>
+      </div>
+    </div>
+
+    <div class="std-footer">
+      <img class="footer-logo" src="${logoImg}" alt="Gomzi" />
+      <span class="page-badge-num">06</span>
     </div>
   </div>
 
   <!-- ================================================================
-       PAGE 7: QUALITY ASSURANCE & R&D
+       PAGE 7: PRODUCT CATEGORY (WHITE LIGHT THEME WITH #99c229 ACCENTS)
        ================================================================ -->
-  <div class="page">
-    <div class="page-header">
-      <div class="page-header__left">
-        <span class="page-header__dot"></span>
-        <span>05 / Research & Quality · Scientific Integrity</span>
-      </div>
-      <img class="page-header__logo" src="${logoImg}" alt="Gomzi" />
+  <div class="page p7-category">
+    <svg class="botanical-accent" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M85 15C65 20 45 40 40 65C60 60 80 40 85 15Z" fill="#99c229" opacity="0.85"/>
+      <circle cx="35" cy="40" r="5" fill="#99c229" opacity="0.9"/>
+      <circle cx="28" cy="52" r="4" fill="#88ad24" opacity="0.9"/>
+      <circle cx="45" cy="55" r="4.5" fill="#cce68c" opacity="0.85"/>
+    </svg>
+
+    <div class="title-category">
+      <span>Product</span>
+      <h2>CATEGORY</h2>
     </div>
 
-    <div class="page-content">
-      <div class="eyebrow">Scientific Rigour & Verification</div>
-      <h2>Care in the Process. Confidence in the Product.</h2>
-      <p class="lead">
-        What goes into a nutritional product matters just as much as the brand label upon it. Our multi-tiered quality assurance protocols protect brand integrity at every stage.
-      </p>
+    <!-- POWDERS -->
+    <div class="p7-powders-block">
+      <div class="p7-powders-head">
+        <h3>POWDERS</h3>
+      </div>
+      <div class="p7-powders-text">
+        General Protein Powder, Hepatic Protein Powder, Renal Protein Powder, Heart Care Protein Powder, Egg Albumin Powder, Chicken Protein Powder, Woman Protein Powder, Kids Protein Powder, High Protein Diet, Cancer Protein Powder, Cardiac Protein Powder, Diabetic Protein Powder, Weight Management Protein Powder, Weight Loss Protein Powder, Protein Granule, Soya Protein Isolate, Pea Protein Powder, Hemp Protein Powder, Vitamin Premix &amp; Mineral Mixture, Instant Energy Drink Powder, Dietary Fibers, Red Fruit Smoothies, Green Vegetable Smoothies, Beet Root Powder, Plant and Herbs Protein Powder, Personalized Whey Protein Powder, Plant Based Biotin, Collagen Peptides, Collagen Builder, Height Grow Protein Powder, Woman’s Weight Gainer, Milk Protein Powder, Joint Care Protein Powder.
+      </div>
+    </div>
 
-      <div class="qa-layout">
-        <div class="about-visual-box" style="height: 64mm;">
-          <img src="${aboutLabImg}" alt="Laboratory Sample Inspection" />
-          <div class="about-caption-box">
-            <span>IT STARTS WITH A QUESTION. <strong>It Grows with Good Science.</strong></span>
-          </div>
-        </div>
-
-        <div class="qa-points-list">
-          <div class="qa-point-item">
-            <h4>01 / Raw Material Quarantine & Assay</h4>
-            <p>Every incoming botanical, amino acid, and vitamin lot is quarantined until identity, purity, potency, moisture, and microbial compliance are chemically certified.</p>
-          </div>
-          <div class="qa-point-item">
-            <h4>02 / Environmental Cleanroom Controls</h4>
-            <p>HEPA-filtered air handling, positive air pressure differentials, temperature, and relative humidity regulation ensure zero cross-contamination.</p>
-          </div>
-          <div class="qa-point-item">
-            <h4>03 / In-Process Variance Mitigation</h4>
-            <p>Dedicated QA auditors conduct regular weight variation, disintegration, blend uniformity, and torque checks throughout active production shifts.</p>
-          </div>
-          <div class="qa-point-item">
-            <h4>04 / Full Batch Traceability & CoA</h4>
-            <p>Every commercial batch is linked to complete batch production records (BPR), retention samples, and comprehensive Certificates of Analysis.</p>
-          </div>
+    <!-- SACHET & MALNUTRITION -->
+    <div class="p7-grid-2col">
+      <div class="p7-cat-box accent-bg">
+        <div class="p7-cat-title">SACHET</div>
+        <div class="p7-cat-desc">
+          L-Arginine sachet, L-Glutamine Sachet, Vitamin D3 Pellets/Granules, Pre &amp; Pro Biotic Sachet, Energy Drink Powder Sachet, Protein Concentrate Sachet, Stevia Sachet, ORS Hydration Sachet.
         </div>
       </div>
-
-      <div class="eyebrow" style="margin-top: 1mm;">The Gomzi Advantage</div>
-      <div class="why-gomzi-grid">
-        <div class="why-item">
-          <span class="why-num">01.</span>
-          <span>100% turnkey third-party & private label manufacturing partner.</span>
-        </div>
-        <div class="why-item">
-          <span class="why-num">02.</span>
-          <span>In-house formulation R&D for bespoke recipe creation.</span>
-        </div>
-        <div class="why-item">
-          <span class="why-num">03.</span>
-          <span>Strict compliance with international GMP and ISO protocols.</span>
-        </div>
-        <div class="why-item">
-          <span class="why-num">04.</span>
-          <span>Comprehensive assay, heavy metal & microbial testing.</span>
-        </div>
-        <div class="why-item">
-          <span class="why-num">05.</span>
-          <span>Time-bound production scheduling & rapid turnaround.</span>
-        </div>
-        <div class="why-item">
-          <span class="why-num">06.</span>
-          <span>Modern high-speed tablet, capsule, and powder lines.</span>
-        </div>
-        <div class="why-item">
-          <span class="why-num">07.</span>
-          <span>Full packaging, labeling, and graphic support.</span>
-        </div>
-        <div class="why-item">
-          <span class="why-num">08.</span>
-          <span>Complete export documentation for global port clearance.</span>
+      <div class="p7-cat-box accent-bg">
+        <div class="p7-cat-title">MALNUTRITION PRODUCTS</div>
+        <div class="p7-cat-desc">
+          F-75 Therapeutic Sachet, F-100 Sachet, Nutritional Micronutrient Sprinkles, Ready-to-Use Therapeutic Food (RUTF), RUSF, Fortified Corn Soya Blends, Plumpy Nut Equivalents.
         </div>
       </div>
     </div>
 
-    <div class="page-footer">
-      <span>Gomzi Life Science LLP · Corporate Profile</span>
-      <span>Quality Assurance & Scientific Rigour</span>
-      <span class="page-footer__num">07</span>
+    <!-- SYRUP -->
+    <div class="p7-full-box">
+      <div class="p7-cat-title">SYRUP &amp; LIQUID ORALS</div>
+      <div class="p7-cat-desc">
+        Multivitamin Syrup, Calcium Suspensions, Carbonyl Iron Syrup, Digestive Enzyme Syrup, Vitamin D3 Oral Drops, Zinc Bisglycinate and Ferrous Bisglycinate Syrup, Pediatric Nutritional Drops, Liver Tonic Syrup, Appetite Stimulant Liquid.
+      </div>
+    </div>
+
+    <!-- TABLETS/CAPSULES -->
+    <div class="p7-full-box">
+      <div class="p7-cat-title">NUTRACEUTICAL &amp; DIETARY TABLETS / CAPSULES</div>
+      <div class="p7-cat-desc">
+        Multivitamin with Minerals Tablets, Calcium with Vitamin D3 Tablets, Chelated Iron with Folic Acid Tablets, Joint Care Glucosamine &amp; Chondroitin Tablets, Co-enzyme Q10 Tablets, Methylcobalamin Vitamin B12, Alpha Lipoic Acid Tablets, Biotin Hair Care Tablets, Alpha Keto Analogue Tablets, Silymarin with Antioxidants, L-Glutathione Skin Brightening Tablets, Omega-3 Fish Oil Capsules.
+      </div>
+    </div>
+
+    <!-- SOFTGEL & GYM -->
+    <div class="p7-grid-2col">
+      <div class="p7-cat-box">
+        <div class="p7-cat-title">SOFTGEL CAPSULES</div>
+        <div class="p7-cat-desc">
+          Multivitamins &amp; Minerals Antioxidants, Iron Supplement, Triple Strength Fish Oil Softgel, Krill Oil, Cod Liver Oil, Flaxseed Oil, Hemp Seed Oil, Omega 3-6-9 Fatty Acids, Algae Oil DHA, Bio-D3 Cholecalciferol, Natural Progesterone, Methylcobalamin Softgel.
+        </div>
+      </div>
+      <div class="p7-cat-box">
+        <div class="p7-cat-title">GYM &amp; SPORTS SUPPLEMENTS</div>
+        <div class="p7-cat-desc">
+          Lean Weight Gainer, Mega Mass Gainer, 100% Whey Protein Concentrate 80%, Whey Protein Isolate 90%, Hydrolyzed Whey Iso Gold, Organic Plant Protein, Micellar Casein, Fast Carbo, Pre-Workout Nitric Oxide Booster, Micronized Creatine, BCAA 2:1:1, L-Glutamine, Thermogenic Fat Burners.
+        </div>
+      </div>
+    </div>
+
+    <!-- EFFERVESCENT TABLET -->
+    <div class="p7-full-box">
+      <div class="p7-cat-title">EFFERVESCENT TABLETS</div>
+      <div class="p7-cat-desc">
+        Apple Cider Vinegar with Mother, High Potency Biotin, Calcium + Magnesium + Zinc + Vitamin D3, Fast Hydration Electrolytes, Reduced L-Glutathione with Vitamin C, Iron + Folic Acid, Daily Multivitamins with Essential Multiminerals, N-Acetylcysteine (NAC 600mg), Probiotics Effervescent, Super Green Detox Fizz.
+      </div>
+    </div>
+
+    <div class="std-footer">
+      <span class="page-badge-num">07</span>
+      <img class="footer-logo" src="${logoImg}" alt="Gomzi" />
     </div>
   </div>
 
   <!-- ================================================================
-       PAGE 8: GLOBAL PRESENCE & EXPORT NETWORK
+       PAGE 8: GLOBAL PRESENCE (WHITE LIGHT THEME + #99c229 BANNERS)
        ================================================================ -->
-  <div class="page">
-    <div class="page-header">
-      <div class="page-header__left">
-        <span class="page-header__dot"></span>
-        <span>06 / Global Presence · International Corridors</span>
+  <div class="page p8-global">
+    <div>
+      <div class="p8-header-top">
+        <img class="p8-top-logo" src="${logoImg}" alt="Gomzi" />
       </div>
-      <img class="page-header__logo" src="${logoImg}" alt="Gomzi" />
+
+      <!-- BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT -->
+      <div class="p8-title-banner">
+        <h2>GLOBAL PRESENCE</h2>
+      </div>
+
+      <div class="p8-metrics-bar">
+        <div class="p8-metric-duo">
+          <div>
+            <div class="p8-metric-val">45+</div>
+            <div class="p8-metric-lbl">COUNTRIES</div>
+          </div>
+          <div>
+            <div class="p8-metric-val" style="white-space: nowrap;">1,000+</div>
+            <div class="p8-metric-lbl">PRODUCTS</div>
+          </div>
+        </div>
+
+        <div class="p8-mfg-lead">
+          <span>Leading name in contract</span>
+          <!-- BANNER BUTTON: #99c229 BACKGROUND WITH WHITE TEXT -->
+          <div class="p8-mfg-badge">MANUFACTURING facility and GLOBALLY EXPORT</div>
+        </div>
+      </div>
+
+      <!-- ONLY THE 6 COUNTRIES / MARKETS SHOWN IN MAP - 2 ROWS OF 3 -->
+      <div class="p8-focus-corridors">
+        <div class="p8-corridor-title">KEY EXPORT CORRIDORS &amp; GLOBAL MARKETS:</div>
+        <div class="p8-corridor-grid">
+          <div class="corridor-pill"><span class="dot"></span> United Kingdom</div>
+          <div class="corridor-pill"><span class="dot"></span> African markets</div>
+          <div class="corridor-pill"><span class="dot"></span> Dubai, UAE</div>
+          <div class="corridor-pill"><span class="dot"></span> Sri Lanka</div>
+          <div class="corridor-pill"><span class="dot"></span> Bangladesh</div>
+          <div class="corridor-pill"><span class="dot"></span> Asian markets</div>
+        </div>
+      </div>
     </div>
 
-    <div class="page-content">
-      <div class="eyebrow">Expanding Worldwide Footprint</div>
-      <h2>Rooted in India. Open to the World.</h2>
-      <p class="lead">
-        Strategically located near India’s major western deep-water ports, Gomzi Life Science LLP bridges manufacturing excellence with robust global export logistics.
-      </p>
+    <!-- CRISP WHITE LIGHT MAP ZONE - NO DARK GREEN -->
+    <div class="p8-map-zone">
+      <svg class="p8-map-svg" viewBox="0 0 1000 450" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="pill-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#99c229" flood-opacity="0.3" />
+          </filter>
+        </defs>
 
-      <div class="map-container-pdf">
-        <svg class="map-svg-pdf" viewBox="0 0 1000 450">
-          <!-- Continents -->
-          <path d="${worldPath}" fill="#c7d4bc" stroke="#edf1e6" stroke-width="0.8" />
+        <!-- Base Landmasses in clean light sage on white canvas -->
+        <path d="${worldPath}" fill="#eef5e4" stroke="#99c229" stroke-width="0.75" />
 
-          <!-- Outgoing Curved Routes -->
-          ${mapRoutes.map(r => `
-            <path d="${r.d}" fill="none" stroke="#24452e" stroke-width="1.8" stroke-dasharray="4 4" opacity="0.85" />
-          `).join('')}
-
-          <!-- Surat Origin Marker -->
-          <g transform="translate(${start.x}, ${start.y})">
-            <circle r="18" fill="rgba(140, 198, 63, 0.4)" stroke="#8cc63f" stroke-width="1.5" />
-            <circle r="10" fill="#24452e" />
-            <text text-anchor="middle" y="3.5" fill="#ffffff" font-size="9" font-weight="800">G</text>
+        <!-- Flight path routes (6 Focus Markets ONLY) in #99c229 -->
+        ${mapRoutes.map(r => `
+          <path d="${r.d}" fill="none" stroke="#99c229" stroke-width="2.6" stroke-dasharray="5,4" opacity="0.95" />
+          
+          <!-- Route destination pinpoint on the map -->
+          <circle cx="${r.end.x.toFixed(1)}" cy="${r.end.y.toFixed(1)}" r="6" fill="#99c229" stroke="#ffffff" stroke-width="2.2" />
+          
+          <!-- Leader connection line to badge -->
+          <line x1="${r.end.x.toFixed(1)}" y1="${r.end.y.toFixed(1)}" x2="${r.pill.x.toFixed(1)}" y2="${r.pill.y.toFixed(1)}" stroke="#99c229" stroke-width="1.3" stroke-dasharray="2,2" opacity="0.85" />
+          
+          <!-- BUTTON BADGE: #99c229 WITH WHITE TEXT -->
+          <g filter="url(#pill-shadow)">
+            <rect x="${(r.pill.x - r.pill.w / 2).toFixed(1)}" y="${(r.pill.y - r.pill.h / 2).toFixed(1)}" width="${r.pill.w}" height="${r.pill.h}" rx="12.5" fill="#99c229" stroke="#ffffff" stroke-width="2" />
+            <circle cx="${(r.pill.x - r.pill.w / 2 + 10).toFixed(1)}" cy="${r.pill.y.toFixed(1)}" r="3" fill="#ffffff" />
+            <text x="${(r.pill.x + 3.5).toFixed(1)}" y="${(r.pill.y + 4.5).toFixed(1)}" text-anchor="middle" fill="#ffffff" font-size="11.5" font-weight="900" font-family="'Inter', 'Plus Jakarta Sans', sans-serif" letter-spacing="0.02em">${r.name}</text>
           </g>
+        `).join('')}
 
-          <!-- Destination Markers -->
-          ${mapRoutes.map(m => `
-            <g transform="translate(${m.end.x}, ${m.end.y})">
-              <circle r="12" fill="rgba(36, 69, 46, 0.2)" />
-              <path d="M0 13 C-3 9 -9 5 -9 -1 a9 9 0 0 1 18 0 C9 5 3 9 0 13 Z" fill="#8cc63f" stroke="#24452e" stroke-width="1" />
-              <text text-anchor="middle" y="2" fill="#24452e" font-size="8" font-weight="700">G</text>
-              <text text-anchor="middle" y="21" fill="#1e241c" font-size="7" font-weight="700">${m.name}</text>
-            </g>
-          `).join('')}
-        </svg>
+        <!-- Origin: Surat (HQ & Plant) Central Hub in #99c229 and White -->
+        <circle cx="${start.x.toFixed(1)}" cy="${start.y.toFixed(1)}" r="8" fill="#99c229" stroke="#ffffff" stroke-width="2.5" />
+        <circle cx="${start.x.toFixed(1)}" cy="${start.y.toFixed(1)}" r="18" fill="none" stroke="#99c229" stroke-width="2" opacity="0.65" />
+        
+        <!-- Surat Leader Line into open Central Asia -->
+        <line x1="${start.x.toFixed(1)}" y1="${(start.y - 8).toFixed(1)}" x2="${start.x.toFixed(1)}" y2="138" stroke="#99c229" stroke-width="2" stroke-dasharray="3,2" />
+        
+        <!-- Surat Highlight Badge: #99c229 with White Text -->
+        <g filter="url(#pill-shadow)">
+          <rect x="${(start.x - 88).toFixed(1)}" y="114" width="176" height="26" rx="13" fill="#99c229" stroke="#ffffff" stroke-width="2.5" />
+          <text x="${start.x.toFixed(1)}" y="132" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="900" font-family="'Inter', 'Plus Jakarta Sans', sans-serif" letter-spacing="0.03em">★ Surat (HQ &amp; Plant)</text>
+        </g>
+      </svg>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2mm; font-size: 7.5pt; color: var(--green);">
-          <span><strong>Origin Hub:</strong> Surat, Gujarat, India (Hazira & Nhava Sheva port connectivity)</span>
-          <span style="color: var(--muted);">6 Major International Export Corridors</span>
+      <!-- Global Logistics & Trade Capabilities Strip - WHITE LIGHT THEME WITH #99c229 BORDERS & HEADERS -->
+      <div class="p8-trade-highlights">
+        <div class="p8-trade-card">
+          <h4>✈ Strategic Coastal Hub</h4>
+          <p>Facility in Surat near Hazira &amp; Mundra ports; fast customs clearance for sea container and air cargo dispatches.</p>
         </div>
-      </div>
-
-      <div class="eyebrow">Active Export Destinations</div>
-      <div class="map-corridors-grid">
-        <div class="corridor-box">
-          <strong>United Kingdom & Europe</strong>
-          <span>Private label contract manufacturing for sports, daily nutrition and lifestyle wellness brands in the UK.</span>
+        <div class="p8-trade-card">
+          <h4>📦 Tropicalized Packaging</h4>
+          <p>Climate-adapted multi-layer induction barrier foils and moisture-resistant packaging engineered for global transit.</p>
         </div>
-        <div class="corridor-box">
-          <strong>African Markets</strong>
-          <span>Supplying high-demand protein powders, essential vitamin supplements and therapeutic formulations.</span>
-        </div>
-        <div class="corridor-box">
-          <strong>Dubai, UAE & Middle East</strong>
-          <span>Strategic hub connections for premium nutraceuticals, halal-compliant capsules, and health drinks.</span>
-        </div>
-        <div class="corridor-box">
-          <strong>Sri Lanka</strong>
-          <span>Bilateral nutritional trade partnerships delivering tablets, syrups, and packaged sachet blends.</span>
-        </div>
-        <div class="corridor-box">
-          <strong>Bangladesh</strong>
-          <span>Contract formulations for dietary supplements, health drinks, and everyday family wellness ranges.</span>
-        </div>
-        <div class="corridor-box">
-          <strong>Asia Pacific Markets</strong>
-          <span>Broad commercial reach across Southeast Asia with specialized gummy, sachet, and effervescent formats.</span>
+        <div class="p8-trade-card">
+          <h4>📑 Full Dossier Support</h4>
+          <p>Complete CTD/eCTD dossiers, Certificates of Pharmaceutical Product (COPP), COA, Free Sale Certificates &amp; embassy attestations.</p>
         </div>
       </div>
     </div>
 
-    <div class="page-footer">
-      <span>Gomzi Life Science LLP · Corporate Profile</span>
-      <span>International Logistics & Trade Corridors</span>
-      <span class="page-footer__num">08</span>
+    <div class="std-footer" style="padding-top: 2.5mm; background: #ffffff;">
+      <img class="footer-logo" src="${logoImg}" alt="Gomzi" />
+      <span class="page-badge-num">08</span>
     </div>
   </div>
 
   <!-- ================================================================
-       PAGE 9: CERTIFICATIONS & CONTACT
+       PAGE 9: PRODUCT CERTIFICATION & CONTACT INFORMATION (WHITE LIGHT)
        ================================================================ -->
-  <div class="page">
-    <div class="page-header">
-      <div class="page-header__left">
-        <span class="page-header__dot"></span>
-        <span>07 / Product Certification & Corporate Directory</span>
-      </div>
-      <img class="page-header__logo" src="${logoImg}" alt="Gomzi" />
+  <div class="page p9-contact">
+    <div class="title-cert">
+      <span>Product</span>
+      <h2>CERTIFICATION</h2>
+    </div>
+    <div class="p9-cert-subtitle">
+      Our company complying the world class quality control measures and certified with the concerned authorities.
     </div>
 
-    <div class="page-content">
-      <div class="eyebrow">Recognized Industry Benchmarks</div>
-      <h2>Quality Deserves Clear Documentation.</h2>
-      <p class="lead">
-        Operating in accordance with world-class regulatory standards. Our facility benchmarks and certified quality protocols assure seamless market entry across international borders.
-      </p>
-
-      <div class="certs-grid-pdf">
-        ${certImgs.map(c => `
-          <div class="cert-box-pdf">
-            <img src="${c.uri}" alt="${c.name}" />
-            <span>${c.name}</span>
-          </div>
-        `).join('')}
-        <div class="cert-box-pdf" style="background: var(--sage); border-color: var(--line);">
-          <strong style="color: var(--green); font-size: 8.5pt;">GLOBAL</strong>
-          <span style="color: var(--accent); font-size: 6.8pt;">COMPLIANCE</span>
+    <div class="p9-certs-grid">
+      ${certImgs.map(c => `
+        <div class="p9-cert-card">
+          <img class="p9-cert-img" src="${c.uri}" alt="${c.name}" />
+          <div class="p9-cert-name">${c.name}</div>
         </div>
+      `).join('')}
+    </div>
+
+    <div class="p9-contact-card">
+      <div class="p9-contact-col">
+        <h4>REGISTERED OFFICE &amp; PLANT</h4>
+        <p><strong>Gomzi Life Science LLP</strong></p>
+        <p>443, 444, 445, 1st Floor, RJD Textile Park,</p>
+        <p>At. Ichchhapor, Hazira Road,</p>
+        <p>Surat - 394510, Gujarat, India.</p>
+
+        <h4 style="margin-top: 4.5mm;">CORPORATE OFFICE</h4>
+        <p>Gaurav Path, Palanpor,</p>
+        <p>Surat - 395009, Gujarat, India.</p>
       </div>
 
-      <div class="contact-card-pdf">
-        <div>
-          <h3>Let’s Create What Comes Next.</h3>
-          <p>
-            Your ambition deserves a manufacturing partner that combines scientific rigor with entrepreneurial agility. Reach out to our international trade division today to discuss formulation ideas, packaging briefs, or sample requests.
-          </p>
-          <address>
-            <strong>Gomzi Life Science LLP</strong><br />
-            443, 444, 445, 1st Floor, RJD Textile Park,<br />
-            At. Ichchhapor, Hazira Road,<br />
-            Surat, Gujarat 394510, India
-          </address>
+      <div class="p9-contact-col">
+        <h4>IMPORT / EXPORT INQUIRY</h4>
+        <div class="p9-contact-detail-row">
+          <span>📞 Phone / WhatsApp:</span>
+          <strong>+91 83200 77993</strong>
+          <span>✉ Email:</span>
+          <a href="mailto:export@gomzilifesciences.in">export@gomzilifesciences.in</a>
         </div>
 
-        <div>
-          <h4 style="color: var(--lime); font-size: 9.5pt; margin-bottom: 2mm;">DIRECT INQUIRY CHANNELS</h4>
-          <div class="contact-detail-row">
-            <div>
-              <span>Official Email</span>
-              <strong>info@gomzilifesciences.in</strong>
-            </div>
-            <div>
-              <span>Phone / WhatsApp</span>
-              <strong>+91 83200 77993</strong>
-            </div>
-            <div>
-              <span>Official Website</span>
-              <strong>www.gomzilifesciences.in</strong>
-            </div>
-            <div>
-              <span>Corporate Hub</span>
-              <strong>Surat, Gujarat, India</strong>
-            </div>
-          </div>
-          <div style="margin-top: 4mm; padding: 2.5mm 3.5mm; background: rgba(255,255,255,0.08); font-size: 7.2pt; color: #d4e3cb;">
-            ⚡ Fast Turnaround: Dedicated technical managers respond to all commercial formulation briefs within 24 business hours.
-          </div>
+        <h4 style="margin-top: 4.5mm;">DOMESTIC INQUIRY</h4>
+        <div class="p9-contact-detail-row">
+          <span>📞 Phone / WhatsApp:</span>
+          <strong>+91 83200 77993</strong>
+          <span>✉ Email:</span>
+          <a href="mailto:info@gomzilifesciences.in">info@gomzilifesciences.in</a>
         </div>
-      </div>
-
-      <div class="notice-box">
-        <strong>Notice & Attribution:</strong> Certification artwork reproduced as reference standards. Final product registrations, specific import permits, product approvals, and commercial contracts are executed directly under Gomzi Life Science LLP agreements. All formulations and specifications are agreed individually for each brand project. © ${new Date().getFullYear()} Gomzi Life Science LLP. All rights reserved.
       </div>
     </div>
 
-    <div class="page-footer">
-      <span>Gomzi Life Science LLP · Corporate Profile</span>
-      <span>Accreditations & Corporate Directory</span>
-      <span class="page-footer__num">09</span>
+    <div class="p9-bottom-block">
+      <div class="p9-web-links">
+        <h4>Click to Website</h4>
+        <div>
+          <!-- BUTTONS: #99c229 WITH WHITE TEXT -->
+          <a class="p9-btn-link" href="https://www.gomzilifesciences.in" target="_blank">🌐 www.gomzilifesciences.in</a>
+          <a class="p9-btn-link" href="https://www.gomzilifesciences.in/nutrition" target="_blank">🌿 india.gomzilifesciences.in</a>
+        </div>
+      </div>
+
+      <div class="p9-thank-you">
+        <strong>Thank you for choosing Gomzi Life Science LLP!</strong>
+        <p>We sincerely appreciate your business and hope to build long-term international partnerships.</p>
+      </div>
+    </div>
+
+    <div class="std-footer">
+      <img class="footer-logo" src="${logoImg}" alt="Gomzi" />
+      <span class="page-badge-num">09</span>
     </div>
   </div>
 
@@ -1855,6 +2272,8 @@ try {
   if (fs.existsSync(pdfFilePath)) {
     const stat = fs.statSync(pdfFilePath);
     console.log(`\n======================================================`);
+    console.log(`  PDF Generated Successfully: ${pdfFilePath}`);
+    console.log(`  File size: ${(stat.size / (1024 * 1024)).toFixed(2)} MB`);
     const publicPdfPath = path.join(rootDir, 'frontend', 'public', 'Gomzi-Life-Science-Company-Profile.pdf');
     fs.copyFileSync(pdfFilePath, publicPdfPath);
     console.log(`  Public Web Copy: ${publicPdfPath}`);
